@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiErrorDetail } from "@/lib/api";
+import { PasswordInput } from "@/components/PasswordInput";
 import { GraduationCap } from "@phosphor-icons/react";
 
 export default function Login() {
@@ -43,7 +44,7 @@ export default function Login() {
           </div>
           <div>
             <label className="block font-bold text-sm mb-1">{t("auth.password")}</label>
-            <input type="password" required value={password} onChange={(e) => setPassword(e.target.value)} data-testid="login-password" className="nb-input" />
+            <PasswordInput required value={password} onChange={(e) => setPassword(e.target.value)} testId="login-password" />
           </div>
           {error && <p className="text-red-600 font-semibold text-sm" data-testid="login-error">{error}</p>}
           <button type="submit" disabled={loading} data-testid="login-submit" className="w-full py-3 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-60">

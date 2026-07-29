@@ -1,0 +1,56 @@
+{
+  "summary": "Full backend + frontend testing for TeachHub new features (post types html/worksheet/blog, upload/files, folders, follow/subscribe, Studio /workspace, confirm-password + eye toggles). All 43 backend pytest tests pass (16 new + 27 existing regression). All 15 requested frontend flows pass on the public REACT_APP_BACKEND_URL. Object storage upload/download verified end-to-end with a real PNG. Follow counters live-update; Following feed populates after follow. Workspace 3-zone layout, folders CRUD, filters, task selection preview, pencil->edit, and fullscreen eye toggle all working.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Publish page", "issues": ["Description char counter reads '0/500' initially with a redundant hint — cosmetic only."]},
+      {"screen": "Workspace top bar", "issues": ["The 'eye' toggle uses the Eye icon (open eye) to enter fullscreen; UX-wise an ArrowsOut icon might be clearer, but a title tooltip is present."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/test_reports/pytest/new_features.xml",
+    "/app/test_reports/pytest/all.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py file is now ~770 lines and contains DB models, storage client, auth utils, serializers and every route in one module. Recommend splitting into routers/ (auth, tasks, files, folders, follows, admin) and services/ (storage, security). Not blocking, but will bite maintainability.",
+    "put_object/get_object make synchronous requests inside async handlers (blocks the event loop). Under load this will degrade throughput. Consider httpx.AsyncClient or run_in_threadpool.",
+    "task_public + enrich_cards do N+1 lookups for authors/likes/favorites. enrich_cards batches authors but task_public does per-request author fetch. Fine at current scale, worth batching later.",
+    "get_optional_user swallows all HTTPExceptions (including 500). Consider only catching 401.",
+    "seed_admin resets admin password on env drift silently — behaves as documented in playbook but log a warning for auditability.",
+    "delete_account: two separate delete_many on follows could be a single $or query."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_new_features.py (new)"
+  ],
+  "success_rate": {"backend": "100% (43/43)", "frontend": "100% (15/15 requested flows)"},
+  "test_credentials": "admin@teachhub.com/admin12345, teacher@teachhub.com/teacher12345 (both verified). Throwaway accounts registered & deleted during test run.",
+  "seed_data_creation": "Registered 2 throwaway users during UI test and deleted them at end. Created 3 tasks (TEST_HTMLpost/TEST_WSpost/TEST_BLOGpost) and cleaned them up. Backend pytest created & deleted its own TEST_* fixtures. No residual data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All new features working. Feed type filter cards show badges via [data-testid=card-type-<id>] with human text ('Blog'/'Worksheet'/'Interactive'). ws-folder testids: 'ws-folder-all', 'ws-folder-type:<t>', 'ws-folder-subject:<s>', 'ws-folder-folder:<id>'. ws-fullscreen appears only in fullscreen mode; the eye toggle button retains same testid ws-eye-toggle in both states. Upload endpoint (POST /api/upload) requires Bearer auth; files served via GET /api/files/{id} publicly. When probing view-iframe / worksheet-content / blog-content visibility, always add a >1s wait after navigation because PostContent mounts after task fetch.",
+  "verified_flows": {
+    "register_confirm_field_and_mismatch_disables_submit": true,
+    "register_password_and_confirm_eye_toggles": true,
+    "login_password_eye_toggle": true,
+    "publish_type_html_creates_and_shows_view_iframe": true,
+    "publish_type_worksheet_upload_and_download": true,
+    "publish_type_blog_body_render": true,
+    "feed_type_filter_worksheet_and_url_param": true,
+    "worksheet_file_download_endpoint": true,
+    "workspace_zones_1_2_3_render_for_teacher": true,
+    "workspace_folder_filter_by_type_and_subject": true,
+    "workspace_create_delete_custom_folder": true,
+    "workspace_task_selection_loads_preview": true,
+    "workspace_pencil_navigates_to_edit": true,
+    "workspace_eye_fullscreen_hides_zones_and_exits": true,
+    "public_profile_follow_toggle_updates_followers_count": true,
+    "profile_followers_following_tabs_render": true,
+    "following_feed_shows_followed_authors_posts": true,
+    "edit_worksheet_preserves_type_and_files": true
+  }
+}

@@ -7,12 +7,15 @@ load_dotenv(ROOT_DIR / '.env')
 import os
 import logging
 import re
+import uuid
 import bcrypt
 import jwt
+import requests
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional, Annotated
 
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends, Query, UploadFile, File, Header
+from fastapi.responses import Response
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, Field, EmailStr, BeforeValidator, ConfigDict
@@ -90,9 +93,62 @@ def sanitize_text(value: str) -> str:
     cleaned = re.sub(r"<[^>]*>", "", value or "")
     return cleaned.strip()
 
+# ---------------- Object Storage ----------------
+STORAGE_URL = "https://integrations.emergentagent.com/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "teachhub"
+_storage_key = None
+
+ALLOWED_IMAGE = {"png", "jpg", "jpeg", "webp", "gif"}
+ALLOWED_DOC = {"pdf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "txt", "csv"}
+MIME_TYPES = {
+    "jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif",
+    "webp": "image/webp", "pdf": "application/pdf", "txt": "text/plain", "csv": "text/csv",
+    "doc": "application/msword",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xls": "application/vnd.ms-excel",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "ppt": "application/vnd.ms-powerpoint",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
+def init_storage():
+    global _storage_key
+    if _storage_key:
+        return _storage_key
+    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+    resp.raise_for_status()
+    _storage_key = resp.json()["storage_key"]
+    return _storage_key
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    resp = requests.put(f"{STORAGE_URL}/objects/{path}",
+                        headers={"X-Storage-Key": key, "Content-Type": content_type},
+                        data=data, timeout=120)
+    if resp.status_code == 403:
+        globals()['_storage_key'] = None
+        key = init_storage()
+        resp = requests.put(f"{STORAGE_URL}/objects/{path}",
+                            headers={"X-Storage-Key": key, "Content-Type": content_type},
+                            data=data, timeout=120)
+    resp.raise_for_status()
+    return resp.json()
+
+def get_object(path: str):
+    key = init_storage()
+    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    if resp.status_code == 403:
+        globals()['_storage_key'] = None
+        key = init_storage()
+        resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
+
 # ---------------- Models ----------------
 SUBJECTS = ["mathematics", "physics", "chemistry", "literature", "history", "foreign_languages", "other"]
 GRADES = ["1-4", "5-6", "7-8", "9-11", "university"]
+POST_TYPES = ["html", "worksheet", "blog"]
 
 class RegisterInput(BaseModel):
     email: EmailStr
@@ -103,13 +159,28 @@ class LoginInput(BaseModel):
     email: EmailStr
     password: str
 
+class FileRef(BaseModel):
+    file_id: str
+    url: str
+    original_filename: str
+    content_type: str = ""
+    size: int = 0
+
 class TaskInput(BaseModel):
+    type: str = "html"
     title: str = Field(min_length=1, max_length=140)
     subject: str
     grade: str
     description: str = Field(default="", max_length=500)
-    html_code: str = Field(min_length=1, max_length=1_000_000)
+    html_code: Optional[str] = Field(default=None, max_length=1_000_000)
+    body: Optional[str] = Field(default=None, max_length=50_000)
+    files: List[FileRef] = Field(default_factory=list)
+    folder_id: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
+
+class FolderInput(BaseModel):
+    name: str = Field(min_length=1, max_length=60)
+    subject: Optional[str] = None
 
 class ReportInput(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
@@ -139,11 +210,15 @@ async def task_public(t: dict, current_user: Optional[dict] = None) -> dict:
         favorited = await db.favorites.find_one({"user_id": uid, "task_id": tid}) is not None
     return {
         "id": tid,
+        "type": t.get("type", "html"),
         "title": t["title"],
         "subject": t["subject"],
         "grade": t["grade"],
         "description": t.get("description", ""),
-        "html_code": t.get("html_code", ""),
+        "html_code": t.get("html_code", "") or "",
+        "body": t.get("body", "") or "",
+        "files": t.get("files", []),
+        "folder_id": t.get("folder_id"),
         "tags": t.get("tags", []),
         "views": t.get("views", 0),
         "likes_count": t.get("likes_count", 0),
@@ -156,8 +231,9 @@ async def task_public(t: dict, current_user: Optional[dict] = None) -> dict:
     }
 
 def task_card(t: dict, author_name: str = "Unknown") -> dict:
-    d = {k: t[k] for k in t if k != "html_code" and k != "_id"}
+    d = {k: t[k] for k in t if k not in ("html_code", "body", "_id")}
     d["id"] = str(t["_id"])
+    d["type"] = t.get("type", "html")
     d["author_name"] = author_name
     return d
 
@@ -210,8 +286,9 @@ async def list_tasks(
     search: Optional[str] = None,
     subject: Optional[str] = None,
     grade: Optional[str] = None,
+    type: Optional[str] = None,
+    author_id: Optional[str] = None,
 ):
-    current_user = await get_optional_user(request)
     q: dict = {}
     if search:
         q["title"] = {"$regex": re.escape(search), "$options": "i"}
@@ -219,6 +296,10 @@ async def list_tasks(
         q["subject"] = subject
     if grade and grade in GRADES:
         q["grade"] = grade
+    if type and type in POST_TYPES:
+        q["type"] = type
+    if author_id:
+        q["author_id"] = author_id
     total = await db.tasks.count_documents(q)
     skip = (page - 1) * limit
     cursor = db.tasks.find(q).sort("created_at", -1).skip(skip).limit(limit)
@@ -239,24 +320,41 @@ async def get_task(task_id: str, request: Request):
     current_user = await get_optional_user(request)
     return await task_public(t, current_user)
 
-@api_router.post("/tasks")
-async def create_task(body: TaskInput, user: dict = Depends(get_current_user)):
+def validate_and_build(body: TaskInput, user: dict) -> dict:
+    if body.type not in POST_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid post type")
     if body.subject not in SUBJECTS:
         raise HTTPException(status_code=400, detail="Invalid subject")
     if body.grade not in GRADES:
         raise HTTPException(status_code=400, detail="Invalid grade")
-    now = datetime.now(timezone.utc).isoformat()
-    doc = {
+    if body.type == "html":
+        if not body.html_code or not body.html_code.strip():
+            raise HTTPException(status_code=400, detail="HTML code is required for HTML tasks")
+    elif body.type == "worksheet":
+        if not body.files:
+            raise HTTPException(status_code=400, detail="At least one file is required for worksheets")
+    elif body.type == "blog":
+        if not body.body or not body.body.strip():
+            raise HTTPException(status_code=400, detail="Body text is required for blog posts")
+    return {
+        "type": body.type,
         "title": sanitize_text(body.title),
         "subject": body.subject,
         "grade": body.grade,
         "description": sanitize_text(body.description),
-        "html_code": body.html_code,
+        "html_code": body.html_code if body.type == "html" else None,
+        "body": sanitize_text(body.body) if body.type == "blog" else None,
+        "files": [f.model_dump() for f in body.files] if body.type in ("worksheet", "blog") else [],
+        "folder_id": body.folder_id or None,
         "tags": [sanitize_text(x) for x in body.tags if x.strip()][:10],
-        "views": 0, "likes_count": 0,
-        "author_id": user["id"],
-        "created_at": now, "updated_at": now,
     }
+
+@api_router.post("/tasks")
+async def create_task(body: TaskInput, user: dict = Depends(get_current_user)):
+    doc = validate_and_build(body, user)
+    now = datetime.now(timezone.utc).isoformat()
+    doc.update({"views": 0, "likes_count": 0, "author_id": user["id"],
+                "created_at": now, "updated_at": now})
     res = await db.tasks.insert_one(doc)
     doc["_id"] = res.inserted_id
     return await task_public(doc, user)
@@ -270,16 +368,8 @@ async def update_task(task_id: str, body: TaskInput, user: dict = Depends(get_cu
         raise HTTPException(status_code=404, detail="Task not found")
     if t["author_id"] != user["id"] and user["role"] != "admin":
         raise HTTPException(status_code=403, detail="Not authorized")
-    if body.subject not in SUBJECTS or body.grade not in GRADES:
-        raise HTTPException(status_code=400, detail="Invalid subject or grade")
-    update = {
-        "title": sanitize_text(body.title),
-        "subject": body.subject, "grade": body.grade,
-        "description": sanitize_text(body.description),
-        "html_code": body.html_code,
-        "tags": [sanitize_text(x) for x in body.tags if x.strip()][:10],
-        "updated_at": datetime.now(timezone.utc).isoformat(),
-    }
+    update = validate_and_build(body, user)
+    update["updated_at"] = datetime.now(timezone.utc).isoformat()
     await db.tasks.update_one({"_id": t["_id"]}, {"$set": update})
     t.update(update)
     return await task_public(t, user)
@@ -393,6 +483,9 @@ async def delete_account(user: dict = Depends(get_current_user)):
     await db.tasks.delete_many({"author_id": uid})
     await db.likes.delete_many({"user_id": uid})
     await db.favorites.delete_many({"user_id": uid})
+    await db.folders.delete_many({"user_id": uid})
+    await db.follows.delete_many({"follower_id": uid})
+    await db.follows.delete_many({"following_id": uid})
     await db.users.delete_one({"_id": ObjectId(uid)})
     return {"message": "Account deleted"}
 
@@ -459,6 +552,179 @@ async def admin_stats(admin: dict = Depends(require_admin)):
 async def root():
     return {"message": "TeachHub API"}
 
+# ---------------- File Upload / Serve ----------------
+BACKEND_PUBLIC_URL = os.environ.get("BACKEND_PUBLIC_URL", "")
+
+@api_router.post("/upload")
+async def upload_file(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    ext = (file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else "bin")
+    if ext not in ALLOWED_IMAGE and ext not in ALLOWED_DOC:
+        raise HTTPException(status_code=400, detail=f"File type .{ext} not allowed")
+    data = await file.read()
+    if len(data) > 25 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 25MB)")
+    content_type = MIME_TYPES.get(ext, file.content_type or "application/octet-stream")
+    path = f"{APP_NAME}/uploads/{user['id']}/{uuid.uuid4()}.{ext}"
+    result = put_object(path, data, content_type)
+    file_id = str(uuid.uuid4())
+    await db.files.insert_one({
+        "id": file_id,
+        "storage_path": result["path"],
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "owner_id": user["id"],
+        "is_image": ext in ALLOWED_IMAGE,
+        "is_deleted": False,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {
+        "file_id": file_id,
+        "url": f"/api/files/{file_id}",
+        "original_filename": file.filename,
+        "content_type": content_type,
+        "size": result.get("size", len(data)),
+        "is_image": ext in ALLOWED_IMAGE,
+    }
+
+@api_router.get("/files/{file_id}")
+async def serve_file(file_id: str, download: bool = False):
+    record = await db.files.find_one({"id": file_id, "is_deleted": False})
+    if not record:
+        raise HTTPException(status_code=404, detail="File not found")
+    data, content_type = get_object(record["storage_path"])
+    headers = {}
+    if download:
+        headers["Content-Disposition"] = f'attachment; filename="{record["original_filename"]}"'
+    return Response(content=data, media_type=record.get("content_type", content_type), headers=headers)
+
+# ---------------- Folders ----------------
+@api_router.get("/folders")
+async def list_folders(user: dict = Depends(get_current_user)):
+    folders = await db.folders.find({"user_id": user["id"]}).sort("created_at", 1).to_list(200)
+    result = []
+    for f in folders:
+        result.append({
+            "id": str(f["_id"]),
+            "name": f["name"],
+            "subject": f.get("subject"),
+            "count": await db.tasks.count_documents({"author_id": user["id"], "folder_id": str(f["_id"])}),
+        })
+    return result
+
+@api_router.post("/folders")
+async def create_folder(body: FolderInput, user: dict = Depends(get_current_user)):
+    doc = {"user_id": user["id"], "name": sanitize_text(body.name),
+           "subject": body.subject if body.subject in SUBJECTS else None,
+           "created_at": datetime.now(timezone.utc).isoformat()}
+    res = await db.folders.insert_one(doc)
+    return {"id": str(res.inserted_id), "name": doc["name"], "subject": doc["subject"], "count": 0}
+
+@api_router.delete("/folders/{folder_id}")
+async def delete_folder(folder_id: str, user: dict = Depends(get_current_user)):
+    if not ObjectId.is_valid(folder_id):
+        raise HTTPException(status_code=404, detail="Folder not found")
+    f = await db.folders.find_one({"_id": ObjectId(folder_id)})
+    if not f or f["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="Folder not found")
+    await db.folders.delete_one({"_id": f["_id"]})
+    await db.tasks.update_many({"folder_id": folder_id}, {"$set": {"folder_id": None}})
+    return {"message": "Folder deleted"}
+
+# ---------------- Follows / Public Profiles ----------------
+async def build_profile(u: dict, current_user: Optional[dict]) -> dict:
+    uid = str(u["_id"])
+    is_following = False
+    if current_user and current_user["id"] != uid:
+        is_following = await db.follows.find_one({"follower_id": current_user["id"], "following_id": uid}) is not None
+    return {
+        "id": uid, "name": u["name"], "role": u["role"], "created_at": u.get("created_at"),
+        "post_count": await db.tasks.count_documents({"author_id": uid}),
+        "followers_count": await db.follows.count_documents({"following_id": uid}),
+        "following_count": await db.follows.count_documents({"follower_id": uid}),
+        "is_following": is_following,
+        "is_self": bool(current_user and current_user["id"] == uid),
+    }
+
+@api_router.get("/users/{user_id}")
+async def get_user_profile(user_id: str, request: Request):
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+    u = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+    current_user = await get_optional_user(request)
+    return await build_profile(u, current_user)
+
+@api_router.get("/users/{user_id}/tasks")
+async def user_tasks(user_id: str, page: int = Query(1, ge=1), limit: int = Query(12, ge=1, le=50)):
+    q = {"author_id": user_id}
+    total = await db.tasks.count_documents(q)
+    skip = (page - 1) * limit
+    docs = await db.tasks.find(q).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    items = await enrich_cards(docs)
+    return {"items": items, "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+
+@api_router.post("/users/{user_id}/follow")
+async def toggle_follow(user_id: str, user: dict = Depends(get_current_user)):
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="Cannot follow yourself")
+    target = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    existing = await db.follows.find_one({"follower_id": user["id"], "following_id": user_id})
+    if existing:
+        await db.follows.delete_one({"_id": existing["_id"]})
+        following = False
+    else:
+        await db.follows.insert_one({"follower_id": user["id"], "following_id": user_id,
+                                     "created_at": datetime.now(timezone.utc).isoformat()})
+        following = True
+    return {"following": following, "followers_count": await db.follows.count_documents({"following_id": user_id})}
+
+async def _follow_user_list(ids: list, current_user: Optional[dict]):
+    result = []
+    for uid in ids:
+        if not ObjectId.is_valid(uid):
+            continue
+        u = await db.users.find_one({"_id": ObjectId(uid)})
+        if not u:
+            continue
+        is_following = False
+        if current_user:
+            is_following = await db.follows.find_one({"follower_id": current_user["id"], "following_id": uid}) is not None
+        result.append({"id": uid, "name": u["name"], "role": u["role"], "is_following": is_following,
+                       "is_self": bool(current_user and current_user["id"] == uid)})
+    return result
+
+@api_router.get("/users/{user_id}/followers")
+async def get_followers(user_id: str, request: Request):
+    docs = await db.follows.find({"following_id": user_id}).to_list(1000)
+    current_user = await get_optional_user(request)
+    return await _follow_user_list([d["follower_id"] for d in docs], current_user)
+
+@api_router.get("/users/{user_id}/following")
+async def get_following(user_id: str, request: Request):
+    docs = await db.follows.find({"follower_id": user_id}).to_list(1000)
+    current_user = await get_optional_user(request)
+    return await _follow_user_list([d["following_id"] for d in docs], current_user)
+
+@api_router.get("/feed/following")
+async def following_feed(request: Request, page: int = Query(1, ge=1), limit: int = Query(10, ge=1, le=50),
+                         user: dict = Depends(get_current_user)):
+    follows = await db.follows.find({"follower_id": user["id"]}).to_list(1000)
+    author_ids = [f["following_id"] for f in follows]
+    if not author_ids:
+        return {"items": [], "total": 0, "page": page, "pages": 1}
+    q = {"author_id": {"$in": author_ids}}
+    total = await db.tasks.count_documents(q)
+    skip = (page - 1) * limit
+    docs = await db.tasks.find(q).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    items = await enrich_cards(docs)
+    return {"items": items, "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
+
 app.include_router(api_router)
 
 app.add_middleware(
@@ -490,8 +756,16 @@ async def startup():
     await db.users.create_index("email", unique=True)
     await db.likes.create_index([("user_id", 1), ("task_id", 1)], unique=True)
     await db.favorites.create_index([("user_id", 1), ("task_id", 1)], unique=True)
+    await db.follows.create_index([("follower_id", 1), ("following_id", 1)], unique=True)
     await db.tasks.create_index([("created_at", -1)])
+    await db.tasks.create_index([("type", 1)])
+    await db.files.create_index("id", unique=True)
     await seed_admin()
+    try:
+        init_storage()
+        logger.info("Storage initialized")
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
 
 @app.on_event("shutdown")
 async def shutdown_db_client():

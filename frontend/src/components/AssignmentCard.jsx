@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Eye, Heart, Calculator, Atom, Flask, BookOpen, Scroll, Globe, PuzzlePiece } from "@phosphor-icons/react";
+import { FILE_URL } from "@/lib/api";
+import { Eye, Heart, Calculator, Atom, Flask, BookOpen, Scroll, Globe, PuzzlePiece, PlayCircle, FileArrowDown, Article } from "@phosphor-icons/react";
 
 const SUBJECT_STYLE = {
   mathematics: { bg: "bg-sky-200", Icon: Calculator },
@@ -12,10 +13,20 @@ const SUBJECT_STYLE = {
   other: { bg: "bg-slate-200", Icon: PuzzlePiece },
 };
 
+const TYPE_META = {
+  html: { Icon: PlayCircle, bg: "bg-sky-300" },
+  worksheet: { Icon: FileArrowDown, bg: "bg-emerald-300" },
+  blog: { Icon: Article, bg: "bg-yellow-300" },
+};
+
 export const AssignmentCard = ({ task }) => {
   const { t } = useTranslation();
   const style = SUBJECT_STYLE[task.subject] || SUBJECT_STYLE.other;
   const Icon = style.Icon;
+  const type = task.type || "html";
+  const typeMeta = TYPE_META[type] || TYPE_META.html;
+  const TypeIcon = typeMeta.Icon;
+  const coverImage = (task.files || []).find((f) => f.is_image || (f.content_type || "").startsWith("image/"));
 
   return (
     <Link
@@ -23,9 +34,16 @@ export const AssignmentCard = ({ task }) => {
       data-testid={`assignment-card-${task.id}`}
       className="nb-card nb-press flex flex-col overflow-hidden group"
     >
-      <div className={`${style.bg} border-b-2 border-slate-900 h-32 flex items-center justify-center relative`}>
-        <Icon size={52} weight="duotone" className="text-slate-900" />
-        <span className="absolute top-2 right-2 text-xs font-bold bg-white border-2 border-slate-900 rounded-full px-2 py-0.5">
+      <div className={`${style.bg} border-b-2 border-slate-900 h-32 flex items-center justify-center relative overflow-hidden`}>
+        {coverImage ? (
+          <img src={FILE_URL(coverImage.file_id)} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        ) : (
+          <Icon size={52} weight="duotone" className="text-slate-900" />
+        )}
+        <span className="absolute top-2 left-2 flex items-center gap-1 text-xs font-bold bg-white border-2 border-slate-900 rounded-full px-2 py-0.5 z-10" data-testid={`card-type-${task.id}`}>
+          <TypeIcon size={13} weight="bold" /> {t(`types.${type}`)}
+        </span>
+        <span className="absolute top-2 right-2 text-xs font-bold bg-white border-2 border-slate-900 rounded-full px-2 py-0.5 z-10">
           {t(`grades.${task.grade}`)}
         </span>
       </div>

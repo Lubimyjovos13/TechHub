@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
 import { formatApiErrorDetail } from "@/lib/api";
+import { PasswordInput } from "@/components/PasswordInput";
 import { GraduationCap } from "@phosphor-icons/react";
 
 export default function Register() {
@@ -13,12 +14,15 @@ export default function Register() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
-    setError(""); setLoading(true);
+    setError("");
+    if (password !== confirm) { setError(t("auth.passwordMismatch")); return; }
+    setLoading(true);
     try {
       await register(email, password, name);
       toast.success(t("auth.registerSuccess"));
@@ -27,6 +31,8 @@ export default function Register() {
       setError(formatApiErrorDetail(err.response?.data?.detail) || err.message);
     } finally { setLoading(false); }
   };
+
+  const mismatch = confirm.length > 0 && password !== confirm;
 
   return (
     <div className="min-h-[calc(100vh-4rem)] flex items-center justify-center px-4 py-12">
@@ -48,11 +54,16 @@ export default function Register() {
           </div>
           <div>
             <label className="block font-bold text-sm mb-1">{t("auth.password")}</label>
-            <input type="password" required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} data-testid="register-password" className="nb-input" />
+            <PasswordInput required minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} testId="register-password" />
             <p className="text-xs text-slate-500 mt-1">{t("auth.passwordHint")}</p>
           </div>
+          <div>
+            <label className="block font-bold text-sm mb-1">{t("auth.confirmPassword")}</label>
+            <PasswordInput required value={confirm} onChange={(e) => setConfirm(e.target.value)} testId="register-confirm" />
+            {mismatch && <p className="text-xs text-red-600 font-semibold mt-1" data-testid="password-mismatch">{t("auth.passwordMismatch")}</p>}
+          </div>
           {error && <p className="text-red-600 font-semibold text-sm" data-testid="register-error">{error}</p>}
-          <button type="submit" disabled={loading} data-testid="register-submit" className="w-full py-3 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-60">
+          <button type="submit" disabled={loading || mismatch} data-testid="register-submit" className="w-full py-3 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-60">
             {loading ? t("common.loading") : t("auth.registerBtn")}
           </button>
         </form>

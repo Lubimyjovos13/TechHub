@@ -4,11 +4,13 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import api, { formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
-import { IframePlayer } from "@/components/IframePlayer";
+import { PostContent } from "@/components/PostContent";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from "@/components/ui/dialog";
-import { Heart, Star, Flag, PencilSimple, Trash, Eye, CaretLeft } from "@phosphor-icons/react";
+import { Heart, Star, Flag, PencilSimple, Trash, Eye, CaretLeft, UserCircle, PlayCircle, FileArrowDown, Article } from "@phosphor-icons/react";
+
+const TYPE_ICON = { html: PlayCircle, worksheet: FileArrowDown, blog: Article };
 
 export default function AssignmentView() {
   const { t } = useTranslation();
@@ -53,6 +55,7 @@ export default function AssignmentView() {
   if (error || !task) return <div className="max-w-5xl mx-auto px-6 py-20 text-center font-bold text-red-600" data-testid="view-error">{error || t("common.error")}</div>;
 
   const isOwner = user && (user.id === task.author_id || user.role === "admin");
+  const TypeIcon = TYPE_ICON[task.type] || PlayCircle;
 
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
@@ -62,6 +65,7 @@ export default function AssignmentView() {
 
       <div className="nb-card p-6 mb-6 nb-rise">
         <div className="flex flex-wrap gap-2 mb-3">
+          <span className="flex items-center gap-1 text-xs font-bold bg-yellow-300 border border-slate-900 rounded-full px-3 py-1"><TypeIcon size={13} weight="bold" /> {t(`types.${task.type}`)}</span>
           <span className="text-xs font-bold bg-sky-200 border border-slate-900 rounded-full px-3 py-1">{t(`subjects.${task.subject}`)}</span>
           <span className="text-xs font-bold bg-violet-200 border border-slate-900 rounded-full px-3 py-1">{t(`grades.${task.grade}`)}</span>
           {task.tags?.map((tag) => <span key={tag} className="text-xs font-bold bg-slate-100 border border-slate-900 rounded-full px-3 py-1">#{tag}</span>)}
@@ -69,14 +73,14 @@ export default function AssignmentView() {
         <h1 className="font-heading text-3xl sm:text-4xl font-extrabold tracking-tight mb-2" data-testid="view-title">{task.title}</h1>
         {task.description && <p className="text-slate-600 mb-3 max-w-3xl">{task.description}</p>}
         <div className="flex flex-wrap items-center gap-4 text-sm font-semibold text-slate-600">
-          <span>{t("card.by")} {task.author_name}</span>
+          <Link to={`/u/${task.author_id}`} className="flex items-center gap-1 hover:underline" data-testid="author-link"><UserCircle size={18} weight="bold" /> {task.author_name}</Link>
           <span className="flex items-center gap-1"><Eye size={16} weight="bold" /> {task.views} {t("view.views")}</span>
           <span className="flex items-center gap-1"><Heart size={16} weight="bold" /> {task.likes_count}</span>
         </div>
       </div>
 
       <div className="mb-6">
-        <IframePlayer html={task.html_code} testId="view-iframe" height="h-[75vh]" />
+        <PostContent task={task} iframeHeight="h-[75vh]" />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -105,8 +109,8 @@ export default function AssignmentView() {
 
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
         <DialogContent className="border-2 border-slate-900 nb-shadow">
-          <DialogHeader><DialogTitle className="font-heading">{t("report.title")}</DialogTitle></DialogHeader>
-          <label className="font-bold text-sm">{t("report.reason")}</label>
+          <DialogHeader><DialogTitle className="font-heading">{t("report.title")}</DialogTitle>
+          <DialogDescription>{t("report.reason")}</DialogDescription></DialogHeader>
           <textarea rows={4} value={reportReason} onChange={(e) => setReportReason(e.target.value)} data-testid="report-reason" className="nb-input resize-none" />
           <DialogFooter>
             <button onClick={submitReport} disabled={!reportReason.trim()} data-testid="report-submit" className="px-5 py-2.5 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-50">{t("report.submit")}</button>
@@ -116,8 +120,8 @@ export default function AssignmentView() {
 
       <Dialog open={delOpen} onOpenChange={setDelOpen}>
         <DialogContent className="border-2 border-slate-900 nb-shadow">
-          <DialogHeader><DialogTitle className="font-heading">{t("view.delete")}</DialogTitle></DialogHeader>
-          <p className="text-slate-600">{t("view.deleteConfirm")}</p>
+          <DialogHeader><DialogTitle className="font-heading">{t("view.delete")}</DialogTitle>
+          <DialogDescription>{t("view.deleteConfirm")}</DialogDescription></DialogHeader>
           <DialogFooter className="gap-2">
             <button onClick={() => setDelOpen(false)} className="px-5 py-2.5 bg-white border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("common.cancel")}</button>
             <button onClick={doDelete} data-testid="confirm-delete" className="px-5 py-2.5 bg-red-400 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("view.delete")}</button>

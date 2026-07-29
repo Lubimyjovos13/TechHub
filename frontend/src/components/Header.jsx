@@ -4,7 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { GraduationCap, Plus, UserCircle, SignOut, Shield, Translate } from "@phosphor-icons/react";
+import { GraduationCap, Plus, UserCircle, SignOut, Shield, Translate, Palette } from "@phosphor-icons/react";
 import i18n from "@/i18n";
 
 export const Header = () => {
@@ -60,6 +60,9 @@ export const Header = () => {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate("/profile")} data-testid="menu-profile" className="font-semibold cursor-pointer">
                     <UserCircle size={16} className="mr-2" /> {t("nav.profile")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => navigate("/workspace")} data-testid="menu-workspace" className="font-semibold cursor-pointer">
+                    <Palette size={16} className="mr-2" /> {t("nav.workspace")}
                   </DropdownMenuItem>
                   {user.role === "admin" && (
                     <DropdownMenuItem onClick={() => navigate("/admin")} data-testid="menu-admin" className="font-semibold cursor-pointer">

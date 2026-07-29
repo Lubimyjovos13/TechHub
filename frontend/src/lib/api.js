@@ -20,4 +20,13 @@ export function formatApiErrorDetail(detail) {
   return String(detail);
 }
 
+export const FILE_URL = (fileId, download = false) => `${API}/files/${fileId}${download ? "?download=true" : ""}`;
+
+export async function uploadFile(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await api.post("/upload", fd);
+  return res.data;
+}
+
 export default api;
