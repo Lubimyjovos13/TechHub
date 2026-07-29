@@ -40,9 +40,18 @@ Bilingual (Russian + English) social platform where teachers publish, share, and
 - Admin: admin@teachhub.com / admin12345
 - Teacher: teacher@teachhub.com / teacher12345
 
+## Implemented — Feature Set 2 (2026-07-29)
+- ✅ Register confirm-password field + eye show/hide toggle on all password inputs (PasswordInput)
+- ✅ Three post types: `html` (interactive iframe), `worksheet` (downloadable images/docs via object storage), `blog` (text + images). Publishable, type-specific rendering (PostContent), and usable as a feed search filter.
+- ✅ Object storage integration (Emergent) for uploads: POST /api/upload, public GET /api/files/{id}
+- ✅ Studio workspace at /workspace — 3-zone layout (top bar with logo/fullscreen-eye/account, folders panel with auto folders by type+subject and user-created folders, tasks list with pencil->edit, preview zone with fullscreen toggle)
+- ✅ Folders CRUD (/api/folders)
+- ✅ Follow/subscribe system: follow toggle, followers/following lists in Profile + Public Profile (/u/:id), and a "Following" feed tab (/api/feed/following)
+- ✅ Verified: 43/43 backend tests, 15/15 new frontend flows. Polished demo worksheet + blog seeded.
+
 ## Backlog / Next (P1/P2)
 - P1: Rate limiting (~100 req/min/IP), production CORS lockdown to frontend origin
-- P1: Move JWT to httpOnly cookies for stricter XSS posture (currently localStorage Bearer)
+- P1: Make storage calls async (httpx/threadpool) — currently sync requests block event loop
+- P1: Split server.py into routers/services for maintainability (~770 lines)
 - P2: Comments, forking, version history, analytics dashboards
-- P2: Thumbnails/cover upload for assignments (object storage)
-- P2: Full WCAG audit (add Dialog descriptions/aria-describedby)
+- P2: Full WCAG audit; httpOnly-cookie auth hardening
