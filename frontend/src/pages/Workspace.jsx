@@ -5,10 +5,10 @@ import { toast } from "sonner";
 import api, { formatApiErrorDetail } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PostContent } from "@/components/PostContent";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import {
-  GraduationCap, Eye, EyeSlash, UserCircle, FolderSimple, FolderSimplePlus, Plus, PencilSimple,
-  PlayCircle, FileArrowDown, Article, Stack, Trash, ArrowsOut, ArrowsIn,
+  GraduationCap, UserCircle, FolderSimple, FolderSimplePlus, Plus, PencilSimple,
+  PlayCircle, FileArrowDown, Article, Stack, Trash,
 } from "@phosphor-icons/react";
 
 const SUBJECTS = ["mathematics", "physics", "chemistry", "literature", "history", "foreign_languages", "other"];
@@ -26,9 +26,9 @@ export default function Workspace() {
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [preview, setPreview] = useState(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-  const [fullscreen, setFullscreen] = useState(false);
   const [folderDialog, setFolderDialog] = useState(false);
   const [folderName, setFolderName] = useState("");
+  const [folderToDelete, setFolderToDelete] = useState(null);
 
   useEffect(() => { if (!authLoading && !user) navigate("/login"); }, [user, authLoading, navigate]);
 
@@ -68,10 +68,11 @@ export default function Workspace() {
     } catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
   };
 
-  const deleteFolder = async (id, e) => {
-    e.stopPropagation();
+  const deleteFolder = async () => {
+    const id = folderToDelete;
     try { await api.delete(`/folders/${id}`); setFolders((f) => f.filter((x) => x.id !== id)); if (selectedKey === `folder:${id}`) setSelectedKey("all"); load(); }
     catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail)); }
+    finally { setFolderToDelete(null); }
   };
 
   if (!user) return null;
@@ -82,7 +83,7 @@ export default function Workspace() {
       <Icon size={18} weight="bold" className="shrink-0" />
       <span className="flex-1 text-left truncate">{label}</span>
       {typeof count === "number" && <span className="text-xs bg-white border border-slate-900 rounded-full px-1.5">{count}</span>}
-      {deletable && <span onClick={(e) => deleteFolder(id.split(":")[1], e)} className="text-red-600 hover:text-red-800" data-testid={`ws-delete-folder-${id.split(":")[1]}`}><Trash size={14} weight="bold" /></span>}
+      {deletable && <span onClick={(e) => { e.stopPropagation(); setFolderToDelete(id.split(":")[1]); }} className="text-red-600 hover:text-red-800" data-testid={`ws-delete-folder-${id.split(":")[1]}`}><Trash size={14} weight="bold" /></span>}
     </button>
   );
 
@@ -93,10 +94,10 @@ export default function Workspace() {
       ) : preview ? (
         <div className="flex-1 overflow-auto">
           <div className="flex items-center justify-between mb-3 gap-2">
-            <h3 className="font-heading font-bold text-lg truncate">{preview.title}</h3>
+            <h3 className="font-heading font-bold text-lg truncate">{preview.title}{preview.is_draft && <span className="ml-2 text-xs font-bold bg-amber-300 border-2 border-slate-900 rounded-full px-2 py-0.5">{t("card.draft")}</span>}</h3>
             <button onClick={() => navigate(`/assignment/${preview.id}`)} className="text-sm font-bold underline shrink-0" data-testid="ws-open-post">{t("card.open")}</button>
           </div>
-          <PostContent task={preview} iframeHeight={fullscreen ? "h-[calc(100vh-160px)]" : "h-[calc(100vh-340px)]"} />
+          <PostContent task={preview} iframeHeight="h-[calc(100vh-340px)]" />
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-slate-400 font-semibold">{t("workspace.selectPost")}</div>
@@ -104,34 +105,15 @@ export default function Workspace() {
     </div>
   );
 
-  // ---- Fullscreen mode: only preview zone ----
-  if (fullscreen) {
-    return (
-      <div className="fixed inset-0 z-50 bg-slate-50 p-4 sm:p-6" data-testid="ws-fullscreen">
-        <button onClick={() => setFullscreen(false)} data-testid="ws-eye-toggle"
-          className="fixed top-4 right-4 z-10 flex items-center gap-2 px-4 py-2.5 bg-slate-900 text-white border-2 border-slate-900 rounded-md font-bold nb-press">
-          <ArrowsIn size={18} weight="bold" /> {t("workspace.exit")}
-        </button>
-        <div className="h-full pt-2">
-          <PreviewZone />
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-slate-50">
+    <div className="min-h-[calc(100vh-4rem)]" style={{ background: "var(--nb-bg)" }}>
       {/* Zone 1: top bar */}
       <div className="bg-white border-b-2 border-slate-900 px-4 sm:px-6 h-14 flex items-center justify-between" data-testid="ws-zone1">
         <button onClick={() => navigate("/")} className="flex items-center gap-2 nb-press" data-testid="ws-logo" title={t("workspace.logoHint")}>
           <div className="w-9 h-9 bg-sky-200 border-2 border-slate-900 rounded-lg flex items-center justify-center"><GraduationCap size={20} weight="bold" /></div>
-          <span className="font-heading font-extrabold hidden sm:block">{t("workspace.title")}</span>
+          <span className="font-heading font-extrabold hidden sm:block">TeachHub</span>
         </button>
         <div className="flex items-center gap-3">
-          <button onClick={() => setFullscreen(true)} data-testid="ws-eye-toggle"
-            className="flex items-center gap-2 px-3 py-2 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold text-sm nb-shadow-sm nb-press" title={t("workspace.fullscreen")}>
-            <Eye size={18} weight="bold" /> <span className="hidden sm:inline">{t("workspace.fullscreen")}</span>
-          </button>
           <button onClick={() => navigate("/profile")} data-testid="ws-account" className="w-10 h-10 bg-white border-2 border-slate-900 rounded-md flex items-center justify-center nb-shadow-sm nb-press" title={t("workspace.account")}>
             <UserCircle size={22} weight="bold" />
           </button>
@@ -201,6 +183,7 @@ export default function Workspace() {
                       className={`flex items-center gap-2 p-2 border-2 border-slate-900 rounded-md cursor-pointer nb-press ${selectedTaskId === tk.id ? "bg-sky-200 nb-shadow-sm" : "bg-white"}`}>
                       <Icon size={18} weight="bold" className="shrink-0" />
                       <span className="flex-1 text-sm font-semibold truncate">{tk.title}</span>
+                      {tk.is_draft && <span className="text-[10px] font-bold bg-amber-300 border border-slate-900 rounded-full px-1.5 py-0.5" data-testid={`ws-draft-${tk.id}`}>{t("card.draft")}</span>}
                       <button onClick={(e) => { e.stopPropagation(); navigate(`/edit/${tk.id}`); }} data-testid={`ws-edit-${tk.id}`}
                         className="p-1 text-slate-700 hover:text-slate-900" title={t("workspace.edit")}>
                         <PencilSimple size={16} weight="bold" />
@@ -220,12 +203,23 @@ export default function Workspace() {
       </div>
 
       <Dialog open={folderDialog} onOpenChange={setFolderDialog}>
-        <DialogContent className="border-2 border-slate-900 nb-shadow">
+        <DialogContent className="border-2 border-slate-900 nb-shadow bg-white">
           <DialogHeader><DialogTitle className="font-heading">{t("workspace.createFolder")}</DialogTitle></DialogHeader>
           <input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder={t("workspace.folderName")} data-testid="ws-folder-name" className="nb-input" />
           <DialogFooter className="gap-2">
             <button onClick={() => setFolderDialog(false)} className="px-4 py-2 bg-white border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("common.cancel")}</button>
             <button onClick={createFolder} disabled={!folderName.trim()} data-testid="ws-folder-create" className="px-4 py-2 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-50">{t("workspace.create")}</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={folderToDelete !== null} onOpenChange={(o) => { if (!o) setFolderToDelete(null); }}>
+        <DialogContent className="border-2 border-slate-900 nb-shadow bg-white">
+          <DialogHeader><DialogTitle className="font-heading">{t("workspace.deleteFolder")}</DialogTitle>
+          <DialogDescription>{t("workspace.deleteFolderConfirm")}</DialogDescription></DialogHeader>
+          <DialogFooter className="gap-2">
+            <button onClick={() => setFolderToDelete(null)} data-testid="ws-folder-delete-cancel" className="px-4 py-2 bg-white border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("common.cancel")}</button>
+            <button onClick={deleteFolder} data-testid="ws-folder-delete-confirm" className="px-4 py-2 bg-red-400 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("workspace.deleteFolder")}</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

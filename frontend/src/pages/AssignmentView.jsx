@@ -66,6 +66,7 @@ export default function AssignmentView() {
       <div className="nb-card p-6 mb-6 nb-rise">
         <div className="flex flex-wrap gap-2 mb-3">
           <span className="flex items-center gap-1 text-xs font-bold bg-yellow-300 border border-slate-900 rounded-full px-3 py-1"><TypeIcon size={13} weight="bold" /> {t(`types.${task.type}`)}</span>
+          {task.is_draft && <span className="text-xs font-bold bg-amber-300 border border-slate-900 rounded-full px-3 py-1" data-testid="view-draft-badge">{t("card.draft")}</span>}
           <span className="text-xs font-bold bg-sky-200 border border-slate-900 rounded-full px-3 py-1">{t(`subjects.${task.subject}`)}</span>
           <span className="text-xs font-bold bg-violet-200 border border-slate-900 rounded-full px-3 py-1">{t(`grades.${task.grade}`)}</span>
           {task.tags?.map((tag) => <span key={tag} className="text-xs font-bold bg-slate-100 border border-slate-900 rounded-full px-3 py-1">#{tag}</span>)}
@@ -108,7 +109,7 @@ export default function AssignmentView() {
       </div>
 
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
-        <DialogContent className="border-2 border-slate-900 nb-shadow">
+        <DialogContent className="border-2 border-slate-900 nb-shadow bg-white">
           <DialogHeader><DialogTitle className="font-heading">{t("report.title")}</DialogTitle>
           <DialogDescription>{t("report.reason")}</DialogDescription></DialogHeader>
           <textarea rows={4} value={reportReason} onChange={(e) => setReportReason(e.target.value)} data-testid="report-reason" className="nb-input resize-none" />
@@ -119,7 +120,7 @@ export default function AssignmentView() {
       </Dialog>
 
       <Dialog open={delOpen} onOpenChange={setDelOpen}>
-        <DialogContent className="border-2 border-slate-900 nb-shadow">
+        <DialogContent className="border-2 border-slate-900 nb-shadow bg-white">
           <DialogHeader><DialogTitle className="font-heading">{t("view.delete")}</DialogTitle>
           <DialogDescription>{t("view.deleteConfirm")}</DialogDescription></DialogHeader>
           <DialogFooter className="gap-2">

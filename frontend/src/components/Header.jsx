@@ -1,21 +1,32 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { GraduationCap, Plus, UserCircle, SignOut, Shield, Translate, Palette } from "@phosphor-icons/react";
+import { GraduationCap, Plus, UserCircle, SignOut, Shield, Translate, Palette, Sun, Moon } from "@phosphor-icons/react";
 import i18n from "@/i18n";
+import { getTheme, applyTheme } from "@/lib/theme";
 
 export const Header = () => {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [theme, setTheme] = useState(getTheme());
+  const [, force] = useState(0);
 
   const toggleLang = () => {
     const next = i18n.language === "ru" ? "en" : "ru";
     i18n.changeLanguage(next);
     localStorage.setItem("th_lang", next);
+    force((n) => n + 1);
+  };
+
+  const toggleTheme = () => {
+    const next = theme === "dark" ? "light" : "dark";
+    applyTheme(next);
+    setTheme(next);
   };
 
   return (
@@ -29,6 +40,14 @@ export const Header = () => {
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={toggleTheme}
+            data-testid="theme-toggle"
+            className="flex items-center justify-center w-10 h-10 bg-emerald-200 border-2 border-slate-900 rounded-md nb-shadow-sm nb-press"
+            aria-label="Toggle dark mode"
+          >
+            {theme === "dark" ? <Sun size={18} weight="bold" /> : <Moon size={18} weight="bold" />}
+          </button>
           <button
             onClick={toggleLang}
             data-testid="lang-toggle"
@@ -55,7 +74,7 @@ export const Header = () => {
                     <UserCircle size={22} weight="bold" />
                   </button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="border-2 border-slate-900 nb-shadow">
+                <DropdownMenuContent align="end" className="border-2 border-slate-900 nb-shadow bg-white">
                   <div className="px-2 py-1.5 text-sm font-bold truncate max-w-[200px]">{user.name}</div>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => navigate("/profile")} data-testid="menu-profile" className="font-semibold cursor-pointer">

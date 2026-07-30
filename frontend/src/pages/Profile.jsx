@@ -9,6 +9,7 @@ import { UserListItem } from "@/components/FollowButton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { PasswordInput } from "@/components/PasswordInput";
+import { Switch } from "@/components/ui/switch";
 import { Palette, ArrowSquareOut } from "@phosphor-icons/react";
 
 export default function Profile() {
@@ -24,9 +25,10 @@ export default function Profile() {
   const [email, setEmail] = useState("");
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
+  const [hideFollows, setHideFollows] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
 
-  useEffect(() => { if (authLoading) return; if (!user) { navigate("/login"); return; } setName(user.name); setEmail(user.email); }, [user, authLoading, navigate]);
+  useEffect(() => { if (authLoading) return; if (!user) { navigate("/login"); return; } setName(user.name); setEmail(user.email); setHideFollows(!!user.hide_follows); }, [user, authLoading, navigate]);
 
   useEffect(() => {
     if (!user) return;
@@ -38,7 +40,7 @@ export default function Profile() {
   }, [user]);
 
   const saveAccount = async () => {
-    try { const res = await api.put("/users/me", { name, email }); setUser(res.data); toast.success(t("profile.saved")); }
+    try { const res = await api.put("/users/me", { name, email, hide_follows: hideFollows }); setUser(res.data); toast.success(t("profile.saved")); }
     catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
   };
   const changePw = async () => {
@@ -113,6 +115,13 @@ export default function Profile() {
               <h3 className="font-heading font-bold text-lg">{t("profile.saveAccount")}</h3>
               <div><label className="block font-bold text-sm mb-1">{t("profile.changeName")}</label><input value={name} onChange={(e) => setName(e.target.value)} data-testid="settings-name" className="nb-input" /></div>
               <div><label className="block font-bold text-sm mb-1">{t("profile.changeEmail")}</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} data-testid="settings-email" className="nb-input" /></div>
+              <div className="flex items-start justify-between gap-3 pt-1">
+                <div>
+                  <div className="font-bold text-sm">{t("profile.hideFollows")}</div>
+                  <div className="text-xs text-slate-500">{t("profile.hideFollowsHint")}</div>
+                </div>
+                <Switch checked={hideFollows} onCheckedChange={setHideFollows} data-testid="settings-hide-follows" />
+              </div>
               <button onClick={saveAccount} data-testid="save-account" className="px-5 py-2.5 bg-sky-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("profile.saveAccount")}</button>
             </div>
             <div className="nb-card p-6 space-y-4">
@@ -130,7 +139,7 @@ export default function Profile() {
       </Tabs>
 
       <Dialog open={delOpen} onOpenChange={setDelOpen}>
-        <DialogContent className="border-2 border-slate-900 nb-shadow">
+        <DialogContent className="border-2 border-slate-900 nb-shadow bg-white">
           <DialogHeader><DialogTitle className="font-heading">{t("profile.deleteAccount")}</DialogTitle>
           <DialogDescription>{t("profile.deleteConfirm")}</DialogDescription></DialogHeader>
           <DialogFooter className="gap-2">

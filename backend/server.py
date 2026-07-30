@@ -177,6 +177,7 @@ class TaskInput(BaseModel):
     files: List[FileRef] = Field(default_factory=list)
     folder_id: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
+    is_draft: bool = False
 
 class FolderInput(BaseModel):
     name: str = Field(min_length=1, max_length=60)
@@ -192,11 +193,13 @@ class ChangePasswordInput(BaseModel):
 class UpdateAccountInput(BaseModel):
     name: Optional[str] = Field(default=None, max_length=80)
     email: Optional[EmailStr] = None
+    hide_follows: Optional[bool] = None
 
 # ---------------- Serializers ----------------
 def user_public(u: dict) -> dict:
     return {"id": str(u["_id"]) if "_id" in u else u.get("id"),
             "email": u["email"], "name": u["name"], "role": u["role"],
+            "hide_follows": u.get("hide_follows", False),
             "created_at": u.get("created_at")}
 
 async def task_public(t: dict, current_user: Optional[dict] = None) -> dict:
@@ -226,6 +229,7 @@ async def task_public(t: dict, current_user: Optional[dict] = None) -> dict:
         "author_name": author["name"] if author else "Unknown",
         "created_at": t.get("created_at"),
         "updated_at": t.get("updated_at"),
+        "is_draft": t.get("is_draft", False),
         "liked": liked,
         "favorited": favorited,
     }
@@ -300,6 +304,7 @@ async def list_tasks(
         q["type"] = type
     if author_id:
         q["author_id"] = author_id
+    q["is_draft"] = {"$ne": True}
     total = await db.tasks.count_documents(q)
     skip = (page - 1) * limit
     cursor = db.tasks.find(q).sort("created_at", -1).skip(skip).limit(limit)
@@ -315,9 +320,13 @@ async def get_task(task_id: str, request: Request):
     t = await db.tasks.find_one({"_id": ObjectId(task_id)})
     if not t:
         raise HTTPException(status_code=404, detail="Task not found")
+    current_user = await get_optional_user(request)
+    if t.get("is_draft"):
+        is_owner = current_user and (current_user["id"] == t.get("author_id") or current_user.get("role") == "admin")
+        if not is_owner:
+            raise HTTPException(status_code=404, detail="Task not found")
     await db.tasks.update_one({"_id": t["_id"]}, {"$inc": {"views": 1}})
     t["views"] = t.get("views", 0) + 1
-    current_user = await get_optional_user(request)
     return await task_public(t, current_user)
 
 def validate_and_build(body: TaskInput, user: dict) -> dict:
@@ -347,6 +356,7 @@ def validate_and_build(body: TaskInput, user: dict) -> dict:
         "files": [f.model_dump() for f in body.files] if body.type in ("worksheet", "blog") else [],
         "folder_id": body.folder_id or None,
         "tags": [sanitize_text(x) for x in body.tags if x.strip()][:10],
+        "is_draft": bool(body.is_draft),
     }
 
 @api_router.post("/tasks")
@@ -463,6 +473,8 @@ async def update_account(body: UpdateAccountInput, user: dict = Depends(get_curr
         if other and str(other["_id"]) != user["id"]:
             raise HTTPException(status_code=400, detail="Email already in use")
         update["email"] = new_email
+    if body.hide_follows is not None:
+        update["hide_follows"] = bool(body.hide_follows)
     if update:
         await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": update})
     updated = await db.users.find_one({"_id": ObjectId(user["id"])})
@@ -634,17 +646,26 @@ async def delete_folder(folder_id: str, user: dict = Depends(get_current_user)):
 # ---------------- Follows / Public Profiles ----------------
 async def build_profile(u: dict, current_user: Optional[dict]) -> dict:
     uid = str(u["_id"])
+    is_self = bool(current_user and current_user["id"] == uid)
     is_following = False
-    if current_user and current_user["id"] != uid:
+    if current_user and not is_self:
         is_following = await db.follows.find_one({"follower_id": current_user["id"], "following_id": uid}) is not None
-    return {
+    hide = bool(u.get("hide_follows", False))
+    post_q = {"author_id": uid} if is_self else {"author_id": uid, "is_draft": {"$ne": True}}
+    profile = {
         "id": uid, "name": u["name"], "role": u["role"], "created_at": u.get("created_at"),
-        "post_count": await db.tasks.count_documents({"author_id": uid}),
-        "followers_count": await db.follows.count_documents({"following_id": uid}),
-        "following_count": await db.follows.count_documents({"follower_id": uid}),
+        "post_count": await db.tasks.count_documents(post_q),
         "is_following": is_following,
-        "is_self": bool(current_user and current_user["id"] == uid),
+        "is_self": is_self,
+        "hide_follows": hide,
     }
+    if hide and not is_self:
+        profile["followers_count"] = None
+        profile["following_count"] = None
+    else:
+        profile["followers_count"] = await db.follows.count_documents({"following_id": uid})
+        profile["following_count"] = await db.follows.count_documents({"follower_id": uid})
+    return profile
 
 @api_router.get("/users/{user_id}")
 async def get_user_profile(user_id: str, request: Request):
@@ -658,7 +679,7 @@ async def get_user_profile(user_id: str, request: Request):
 
 @api_router.get("/users/{user_id}/tasks")
 async def user_tasks(user_id: str, page: int = Query(1, ge=1), limit: int = Query(12, ge=1, le=50)):
-    q = {"author_id": user_id}
+    q = {"author_id": user_id, "is_draft": {"$ne": True}}
     total = await db.tasks.count_documents(q)
     skip = (page - 1) * limit
     docs = await db.tasks.find(q).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
@@ -701,14 +722,22 @@ async def _follow_user_list(ids: list, current_user: Optional[dict]):
 
 @api_router.get("/users/{user_id}/followers")
 async def get_followers(user_id: str, request: Request):
-    docs = await db.follows.find({"following_id": user_id}).to_list(1000)
     current_user = await get_optional_user(request)
+    target = await db.users.find_one({"_id": ObjectId(user_id)}) if ObjectId.is_valid(user_id) else None
+    is_self = bool(current_user and target and current_user["id"] == str(target["_id"]))
+    if target and target.get("hide_follows") and not is_self:
+        return []
+    docs = await db.follows.find({"following_id": user_id}).to_list(1000)
     return await _follow_user_list([d["follower_id"] for d in docs], current_user)
 
 @api_router.get("/users/{user_id}/following")
 async def get_following(user_id: str, request: Request):
-    docs = await db.follows.find({"follower_id": user_id}).to_list(1000)
     current_user = await get_optional_user(request)
+    target = await db.users.find_one({"_id": ObjectId(user_id)}) if ObjectId.is_valid(user_id) else None
+    is_self = bool(current_user and target and current_user["id"] == str(target["_id"]))
+    if target and target.get("hide_follows") and not is_self:
+        return []
+    docs = await db.follows.find({"follower_id": user_id}).to_list(1000)
     return await _follow_user_list([d["following_id"] for d in docs], current_user)
 
 @api_router.get("/feed/following")
@@ -718,7 +747,7 @@ async def following_feed(request: Request, page: int = Query(1, ge=1), limit: in
     author_ids = [f["following_id"] for f in follows]
     if not author_ids:
         return {"items": [], "total": 0, "page": page, "pages": 1}
-    q = {"author_id": {"$in": author_ids}}
+    q = {"author_id": {"$in": author_ids}, "is_draft": {"$ne": True}}
     total = await db.tasks.count_documents(q)
     skip = (page - 1) * limit
     docs = await db.tasks.find(q).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)

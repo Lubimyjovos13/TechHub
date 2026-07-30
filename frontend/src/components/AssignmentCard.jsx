@@ -46,6 +46,11 @@ export const AssignmentCard = ({ task }) => {
         <span className="absolute top-2 right-2 text-xs font-bold bg-white border-2 border-slate-900 rounded-full px-2 py-0.5 z-10">
           {t(`grades.${task.grade}`)}
         </span>
+        {task.is_draft && (
+          <span className="absolute bottom-2 left-2 text-xs font-bold bg-amber-300 border-2 border-slate-900 rounded-full px-2 py-0.5 z-10" data-testid={`card-draft-${task.id}`}>
+            {t("card.draft")}
+          </span>
+        )}
       </div>
       <div className="p-4 flex flex-col flex-1">
         <span className="inline-block w-fit text-xs font-bold bg-white border border-slate-900 rounded-full px-2 py-0.5 mb-2">

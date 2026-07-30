@@ -5,7 +5,8 @@ import { toast } from "sonner";
 import api, { formatApiErrorDetail, uploadFile, FILE_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PostContent } from "@/components/PostContent";
-import { FloppyDisk, PlayCircle, FileArrowDown, Article, UploadSimple, X, Spinner } from "@phosphor-icons/react";
+import { FloppyDisk, PlayCircle, FileArrowDown, Article, UploadSimple, X, Spinner, Trash } from "@phosphor-icons/react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 const SUBJECTS = ["mathematics", "physics", "chemistry", "literature", "history", "foreign_languages", "other"];
 const GRADES = ["1-4", "5-6", "7-8", "9-11", "university"];
@@ -30,6 +31,8 @@ export default function Publish() {
   const [form, setForm] = useState({ title: "", subject: "", grade: "", description: "", tags: "", html_code: SAMPLE, body: "", folder_id: "" });
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
+  const [isDraft, setIsDraft] = useState(false);
+  const [delOpen, setDelOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,6 +51,7 @@ export default function Publish() {
       setType(d.type || "html");
       setForm({ title: d.title, subject: d.subject, grade: d.grade, description: d.description || "", tags: (d.tags || []).join(", "), html_code: d.html_code || SAMPLE, body: d.body || "", folder_id: d.folder_id || "" });
       setFiles(d.files || []);
+      setIsDraft(!!d.is_draft);
     }).catch(() => setError(t("common.error"))).finally(() => setFetching(false));
   }, [id, isEdit, t]);
 
@@ -72,6 +76,11 @@ export default function Publish() {
 
   const removeFile = (fid) => setFiles((prev) => prev.filter((f) => f.file_id !== fid));
 
+  const doDelete = async () => {
+    try { await api.delete(`/tasks/${id}`); toast.success(t("view.delete")); navigate("/workspace"); }
+    catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setError(""); setLoading(true);
@@ -84,6 +93,7 @@ export default function Publish() {
       files: type === "html" ? [] : files,
       folder_id: form.folder_id || null,
       tags: form.tags.split(",").map((x) => x.trim()).filter(Boolean),
+      is_draft: isDraft,
     };
     try {
       let res;
@@ -203,13 +213,25 @@ export default function Publish() {
           </div>
 
           {error && <p className="text-red-600 font-semibold text-sm" data-testid="publish-error">{error}</p>}
-          <div className="flex gap-3">
-            <button type="submit" disabled={loading} data-testid="publish-submit" className="flex-1 flex items-center justify-center gap-2 py-3 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-60">
-              <FloppyDisk size={18} weight="bold" /> {loading ? t("common.loading") : (isEdit ? t("publish.update") : t("publish.submit"))}
+
+          <label className="flex items-center gap-3 p-3 border-2 border-slate-900 rounded-md bg-amber-100 cursor-pointer" data-testid="publish-draft-label">
+            <input type="checkbox" checked={isDraft} onChange={(e) => setIsDraft(e.target.checked)} data-testid="publish-draft" className="w-5 h-5 accent-slate-900" />
+            <span className="text-sm font-bold">{t("publish.draftLabel")}</span>
+            <span className="text-xs text-slate-600">{t("publish.draftHint")}</span>
+          </label>
+
+          <div className="flex gap-3 flex-wrap">
+            <button type="submit" disabled={loading} data-testid="publish-submit" className="flex-1 min-w-[160px] flex items-center justify-center gap-2 py-3 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-60">
+              <FloppyDisk size={18} weight="bold" /> {loading ? t("common.loading") : (isEdit ? t("publish.update") : (isDraft ? t("publish.saveDraft") : t("publish.submit")))}
             </button>
             <button type="button" onClick={() => navigate(-1)} data-testid="publish-cancel" className="px-5 py-3 bg-white border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">
               {t("publish.cancel")}
             </button>
+            {isEdit && (
+              <button type="button" onClick={() => setDelOpen(true)} data-testid="publish-delete" className="flex items-center gap-2 px-5 py-3 bg-red-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">
+                <Trash size={18} weight="bold" /> {t("view.delete")}
+              </button>
+            )}
           </div>
         </form>
 
@@ -218,6 +240,17 @@ export default function Publish() {
           <PostContent task={previewTask} iframeHeight="h-[70vh]" />
         </div>
       </div>
+
+      <Dialog open={delOpen} onOpenChange={setDelOpen}>
+        <DialogContent className="border-2 border-slate-900 nb-shadow bg-white">
+          <DialogHeader><DialogTitle className="font-heading">{t("view.delete")}</DialogTitle>
+          <DialogDescription>{t("view.deleteConfirm")}</DialogDescription></DialogHeader>
+          <DialogFooter className="gap-2">
+            <button onClick={() => setDelOpen(false)} className="px-5 py-2.5 bg-white border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("common.cancel")}</button>
+            <button onClick={doDelete} data-testid="publish-confirm-delete" className="px-5 py-2.5 bg-red-400 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("view.delete")}</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

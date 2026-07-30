@@ -40,6 +40,8 @@ export default function PublicProfile() {
     </div>
   );
 
+  const showFollows = !(profile.hide_follows && !profile.is_self);
+
   return (
     <div className="max-w-[1500px] mx-auto px-4 sm:px-6 py-8">
       <div className="nb-card p-6 mb-8 nb-rise">
@@ -55,16 +57,16 @@ export default function PublicProfile() {
         </div>
         <div className="flex gap-8 mt-5">
           <Stat value={profile.post_count} label={t("follow.posts")} testId="stat-posts" />
-          <Stat value={profile.followers_count} label={t("follow.followers")} testId="stat-followers" />
-          <Stat value={profile.following_count} label={t("follow.followingList")} testId="stat-following" />
+          {showFollows && <Stat value={profile.followers_count} label={t("follow.followers")} testId="stat-followers" />}
+          {showFollows && <Stat value={profile.following_count} label={t("follow.followingList")} testId="stat-following" />}
         </div>
       </div>
 
       <Tabs defaultValue="posts">
         <TabsList className="bg-white border-2 border-slate-900 nb-shadow-sm p-1 h-auto flex-wrap">
           <TabsTrigger value="posts" data-testid="pp-tab-posts" className="font-bold data-[state=active]:bg-sky-200 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.posts")}</TabsTrigger>
-          <TabsTrigger value="followers" data-testid="pp-tab-followers" className="font-bold data-[state=active]:bg-yellow-300 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.followers")}</TabsTrigger>
-          <TabsTrigger value="following" data-testid="pp-tab-following" className="font-bold data-[state=active]:bg-violet-200 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.followingList")}</TabsTrigger>
+          {showFollows && <TabsTrigger value="followers" data-testid="pp-tab-followers" className="font-bold data-[state=active]:bg-yellow-300 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.followers")}</TabsTrigger>}
+          {showFollows && <TabsTrigger value="following" data-testid="pp-tab-following" className="font-bold data-[state=active]:bg-violet-200 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.followingList")}</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="posts" className="mt-6">
