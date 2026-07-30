@@ -1,16 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import api, { formatApiErrorDetail } from "@/lib/api";
+import api, { formatApiErrorDetail, uploadFile, FILE_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { AssignmentCard } from "@/components/AssignmentCard";
 import { UserListItem } from "@/components/FollowButton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { PasswordInput } from "@/components/PasswordInput";
-import { Switch } from "@/components/ui/switch";
-import { Palette, ArrowSquareOut } from "@phosphor-icons/react";
+import { Palette, ArrowSquareOut, Camera, UserCircle } from "@phosphor-icons/react";
 
 export default function Profile() {
   const { t } = useTranslation();
@@ -25,10 +24,30 @@ export default function Profile() {
   const [email, setEmail] = useState("");
   const [curPw, setCurPw] = useState("");
   const [newPw, setNewPw] = useState("");
-  const [hideFollows, setHideFollows] = useState(false);
+  const [bio, setBio] = useState("");
+  const [avatarFileId, setAvatarFileId] = useState(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [hideFollowers, setHideFollowers] = useState(false);
+  const [hideFollowing, setHideFollowing] = useState(false);
   const [delOpen, setDelOpen] = useState(false);
+  const avatarRef = useRef(null);
 
-  useEffect(() => { if (authLoading) return; if (!user) { navigate("/login"); return; } setName(user.name); setEmail(user.email); setHideFollows(!!user.hide_follows); }, [user, authLoading, navigate]);
+  useEffect(() => {
+    if (authLoading) return;
+    if (!user) { navigate("/login"); return; }
+    setName(user.name); setEmail(user.email);
+    setBio(user.bio || ""); setAvatarFileId(user.avatar_file_id || null);
+    setHideFollowers(!!user.hide_followers); setHideFollowing(!!user.hide_following);
+  }, [user, authLoading, navigate]);
+
+  const onAvatar = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setAvatarUploading(true);
+    try { const res = await uploadFile(file); setAvatarFileId(res.file_id); }
+    catch (err) { toast.error(formatApiErrorDetail(err.response?.data?.detail) || err.message); }
+    finally { setAvatarUploading(false); if (avatarRef.current) avatarRef.current.value = ""; }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -40,8 +59,10 @@ export default function Profile() {
   }, [user]);
 
   const saveAccount = async () => {
-    try { const res = await api.put("/users/me", { name, email, hide_follows: hideFollows }); setUser(res.data); toast.success(t("profile.saved")); }
-    catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
+    try {
+      const res = await api.put("/users/me", { name, email, bio, avatar_file_id: avatarFileId || "", hide_followers: hideFollowers, hide_following: hideFollowing });
+      setUser(res.data); toast.success(t("profile.saved"));
+    } catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
   };
   const changePw = async () => {
     try { await api.put("/users/me/password", { current_password: curPw, new_password: newPw }); toast.success(t("profile.passwordChanged")); setCurPw(""); setNewPw(""); }
@@ -113,14 +134,31 @@ export default function Profile() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-4xl">
             <div className="nb-card p-6 space-y-4">
               <h3 className="font-heading font-bold text-lg">{t("profile.saveAccount")}</h3>
+              <div className="flex items-center gap-4">
+                <div className="w-20 h-20 rounded-lg border-2 border-slate-900 overflow-hidden bg-sky-200 flex items-center justify-center shrink-0">
+                  {avatarFileId ? <img src={FILE_URL(avatarFileId)} alt="avatar" className="w-full h-full object-cover" data-testid="avatar-preview" /> : <UserCircle size={40} weight="bold" />}
+                </div>
+                <div>
+                  <input ref={avatarRef} type="file" accept="image/*" onChange={onAvatar} className="hidden" data-testid="avatar-input" />
+                  <button onClick={() => avatarRef.current?.click()} disabled={avatarUploading} data-testid="avatar-upload-btn" className="flex items-center gap-2 px-4 py-2 bg-violet-200 border-2 border-slate-900 rounded-md font-bold text-sm nb-shadow-sm nb-press disabled:opacity-60">
+                    <Camera size={16} weight="bold" /> {avatarUploading ? t("publish.uploading") : t("profile.changeAvatar")}
+                  </button>
+                  {avatarFileId && <button onClick={() => setAvatarFileId(null)} data-testid="avatar-remove" className="ml-2 text-sm font-bold text-red-600 hover:underline">{t("publish.remove")}</button>}
+                </div>
+              </div>
               <div><label className="block font-bold text-sm mb-1">{t("profile.changeName")}</label><input value={name} onChange={(e) => setName(e.target.value)} data-testid="settings-name" className="nb-input" /></div>
               <div><label className="block font-bold text-sm mb-1">{t("profile.changeEmail")}</label><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} data-testid="settings-email" className="nb-input" /></div>
-              <div className="flex items-start justify-between gap-3 pt-1">
-                <div>
-                  <div className="font-bold text-sm">{t("profile.hideFollows")}</div>
-                  <div className="text-xs text-slate-500">{t("profile.hideFollowsHint")}</div>
-                </div>
-                <Switch checked={hideFollows} onCheckedChange={setHideFollows} data-testid="settings-hide-follows" />
+              <div><label className="block font-bold text-sm mb-1">{t("profile.bio")}</label><textarea rows={3} maxLength={500} value={bio} onChange={(e) => setBio(e.target.value)} data-testid="settings-bio" className="nb-input resize-none" placeholder={t("profile.bioHint")} /></div>
+              <div className="pt-1">
+                <div className="font-bold text-sm mb-2">{t("profile.privacy")}</div>
+                <label className="flex items-center gap-3 p-2 border-2 border-slate-900 rounded-md bg-slate-50 cursor-pointer mb-2">
+                  <input type="checkbox" checked={hideFollowers} onChange={(e) => setHideFollowers(e.target.checked)} data-testid="settings-hide-followers" className="w-5 h-5 accent-slate-900" />
+                  <span className="text-sm font-semibold">{t("profile.hideFollowers")}</span>
+                </label>
+                <label className="flex items-center gap-3 p-2 border-2 border-slate-900 rounded-md bg-slate-50 cursor-pointer">
+                  <input type="checkbox" checked={hideFollowing} onChange={(e) => setHideFollowing(e.target.checked)} data-testid="settings-hide-following" className="w-5 h-5 accent-slate-900" />
+                  <span className="text-sm font-semibold">{t("profile.hideFollowing")}</span>
+                </label>
               </div>
               <button onClick={saveAccount} data-testid="save-account" className="px-5 py-2.5 bg-sky-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("profile.saveAccount")}</button>
             </div>

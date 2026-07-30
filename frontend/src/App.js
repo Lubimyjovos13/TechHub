@@ -43,7 +43,18 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <Shell />
-        <Toaster position="top-center" />
+        <Toaster
+          position="top-center"
+          toastOptions={{
+            style: {
+              background: "var(--nb-surface)",
+              color: "var(--nb-text)",
+              border: "2px solid var(--nb-border)",
+              boxShadow: "4px 4px 0px 0px var(--nb-shadow)",
+              fontWeight: 600,
+            },
+          }}
+        />
       </BrowserRouter>
     </AuthProvider>
   );

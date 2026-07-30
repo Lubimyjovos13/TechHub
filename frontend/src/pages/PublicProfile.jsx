@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import api from "@/lib/api";
+import api, { FILE_URL } from "@/lib/api";
 import { AssignmentCard } from "@/components/AssignmentCard";
 import { FollowButton, UserListItem } from "@/components/FollowButton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -40,33 +40,37 @@ export default function PublicProfile() {
     </div>
   );
 
-  const showFollows = !(profile.hide_follows && !profile.is_self);
+  const showFollowers = !(profile.hide_followers && !profile.is_self);
+  const showFollowing = !(profile.hide_following && !profile.is_self);
 
   return (
     <div className="max-w-[1500px] mx-auto px-4 sm:px-6 py-8">
       <div className="nb-card p-6 mb-8 nb-rise">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-          <div className="w-16 h-16 bg-sky-200 border-2 border-slate-900 rounded-lg flex items-center justify-center shrink-0"><UserCircle size={36} weight="bold" /></div>
+          <div className="w-16 h-16 bg-sky-200 border-2 border-slate-900 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
+            {profile.avatar_file_id ? <img src={FILE_URL(profile.avatar_file_id)} alt="" className="w-full h-full object-cover" data-testid="profile-avatar" /> : <UserCircle size={36} weight="bold" />}
+          </div>
           <div className="flex-1">
             <h1 className="font-heading text-3xl font-extrabold tracking-tight flex items-center gap-2" data-testid="profile-name">
               {profile.name}
               {profile.role === "admin" && <span className="flex items-center gap-1 text-xs font-bold bg-yellow-300 border border-slate-900 rounded-full px-2 py-0.5"><Shield size={12} weight="bold" /> admin</span>}
             </h1>
+            {profile.bio && <p className="text-slate-600 mt-1 max-w-2xl" data-testid="profile-bio">{profile.bio}</p>}
           </div>
           <FollowButton userId={profile.id} initialFollowing={profile.is_following} onChange={load} />
         </div>
         <div className="flex gap-8 mt-5">
           <Stat value={profile.post_count} label={t("follow.posts")} testId="stat-posts" />
-          {showFollows && <Stat value={profile.followers_count} label={t("follow.followers")} testId="stat-followers" />}
-          {showFollows && <Stat value={profile.following_count} label={t("follow.followingList")} testId="stat-following" />}
+          {showFollowers && <Stat value={profile.followers_count} label={t("follow.followers")} testId="stat-followers" />}
+          {showFollowing && <Stat value={profile.following_count} label={t("follow.followingList")} testId="stat-following" />}
         </div>
       </div>
 
       <Tabs defaultValue="posts">
         <TabsList className="bg-white border-2 border-slate-900 nb-shadow-sm p-1 h-auto flex-wrap">
           <TabsTrigger value="posts" data-testid="pp-tab-posts" className="font-bold data-[state=active]:bg-sky-200 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.posts")}</TabsTrigger>
-          {showFollows && <TabsTrigger value="followers" data-testid="pp-tab-followers" className="font-bold data-[state=active]:bg-yellow-300 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.followers")}</TabsTrigger>}
-          {showFollows && <TabsTrigger value="following" data-testid="pp-tab-following" className="font-bold data-[state=active]:bg-violet-200 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.followingList")}</TabsTrigger>}
+          {showFollowers && <TabsTrigger value="followers" data-testid="pp-tab-followers" className="font-bold data-[state=active]:bg-yellow-300 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.followers")}</TabsTrigger>}
+          {showFollowing && <TabsTrigger value="following" data-testid="pp-tab-following" className="font-bold data-[state=active]:bg-violet-200 data-[state=active]:border-2 data-[state=active]:border-slate-900">{t("follow.followingList")}</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="posts" className="mt-6">

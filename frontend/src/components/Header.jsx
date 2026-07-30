@@ -8,6 +8,7 @@ import {
 import { GraduationCap, Plus, UserCircle, SignOut, Shield, Translate, Palette, Sun, Moon } from "@phosphor-icons/react";
 import i18n from "@/i18n";
 import { getTheme, applyTheme } from "@/lib/theme";
+import { FILE_URL } from "@/lib/api";
 
 export const Header = () => {
   const { t } = useTranslation();
@@ -70,8 +71,8 @@ export const Header = () => {
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <button data-testid="profile-menu-trigger" className="flex items-center gap-2 px-2 py-1.5 bg-white border-2 border-slate-900 rounded-md nb-shadow-sm nb-press" aria-label="Profile menu">
-                    <UserCircle size={22} weight="bold" />
+                  <button data-testid="profile-menu-trigger" className="flex items-center gap-2 w-11 h-11 justify-center bg-white border-2 border-slate-900 rounded-md nb-shadow-sm nb-press overflow-hidden" aria-label="Profile menu">
+                    {user.avatar_file_id ? <img src={FILE_URL(user.avatar_file_id)} alt="" className="w-full h-full object-cover" /> : <UserCircle size={22} weight="bold" />}
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="border-2 border-slate-900 nb-shadow bg-white">

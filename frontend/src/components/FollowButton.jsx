@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import api, { formatApiErrorDetail } from "@/lib/api";
+import api, { formatApiErrorDetail, FILE_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { UserCircle, UserPlus, Check } from "@phosphor-icons/react";
 
@@ -36,7 +36,9 @@ export const FollowButton = ({ userId, initialFollowing, onChange, size = "md" }
 
 export const UserListItem = ({ u }) => (
   <div className="flex items-center gap-3 p-3 border-2 border-slate-900 rounded-md bg-white" data-testid={`user-item-${u.id}`}>
-    <div className="w-10 h-10 bg-sky-200 border-2 border-slate-900 rounded-md flex items-center justify-center shrink-0"><UserCircle size={22} weight="bold" /></div>
+    <div className="w-10 h-10 bg-sky-200 border-2 border-slate-900 rounded-md flex items-center justify-center shrink-0 overflow-hidden">
+      {u.avatar_file_id ? <img src={FILE_URL(u.avatar_file_id)} alt="" className="w-full h-full object-cover" /> : <UserCircle size={22} weight="bold" />}
+    </div>
     <Link to={`/u/${u.id}`} className="flex-1 font-bold truncate hover:underline">{u.name}</Link>
     <FollowButton userId={u.id} initialFollowing={u.is_following} size="sm" />
   </div>

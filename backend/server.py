@@ -193,13 +193,24 @@ class ChangePasswordInput(BaseModel):
 class UpdateAccountInput(BaseModel):
     name: Optional[str] = Field(default=None, max_length=80)
     email: Optional[EmailStr] = None
-    hide_follows: Optional[bool] = None
+    bio: Optional[str] = Field(default=None, max_length=500)
+    avatar_file_id: Optional[str] = None
+    hide_followers: Optional[bool] = None
+    hide_following: Optional[bool] = None
 
 # ---------------- Serializers ----------------
+def avatar_url_for(u: dict) -> Optional[str]:
+    fid = u.get("avatar_file_id")
+    return f"/api/files/{fid}" if fid else None
+
 def user_public(u: dict) -> dict:
     return {"id": str(u["_id"]) if "_id" in u else u.get("id"),
             "email": u["email"], "name": u["name"], "role": u["role"],
-            "hide_follows": u.get("hide_follows", False),
+            "bio": u.get("bio", ""),
+            "avatar_file_id": u.get("avatar_file_id"),
+            "avatar_url": avatar_url_for(u),
+            "hide_followers": u.get("hide_followers", False),
+            "hide_following": u.get("hide_following", False),
             "created_at": u.get("created_at")}
 
 async def task_public(t: dict, current_user: Optional[dict] = None) -> dict:
@@ -473,8 +484,14 @@ async def update_account(body: UpdateAccountInput, user: dict = Depends(get_curr
         if other and str(other["_id"]) != user["id"]:
             raise HTTPException(status_code=400, detail="Email already in use")
         update["email"] = new_email
-    if body.hide_follows is not None:
-        update["hide_follows"] = bool(body.hide_follows)
+    if body.bio is not None:
+        update["bio"] = sanitize_text(body.bio)
+    if body.avatar_file_id is not None:
+        update["avatar_file_id"] = body.avatar_file_id or None
+    if body.hide_followers is not None:
+        update["hide_followers"] = bool(body.hide_followers)
+    if body.hide_following is not None:
+        update["hide_following"] = bool(body.hide_following)
     if update:
         await db.users.update_one({"_id": ObjectId(user["id"])}, {"$set": update})
     updated = await db.users.find_one({"_id": ObjectId(user["id"])})
@@ -650,20 +667,27 @@ async def build_profile(u: dict, current_user: Optional[dict]) -> dict:
     is_following = False
     if current_user and not is_self:
         is_following = await db.follows.find_one({"follower_id": current_user["id"], "following_id": uid}) is not None
-    hide = bool(u.get("hide_follows", False))
+    hide_followers = bool(u.get("hide_followers", False))
+    hide_following = bool(u.get("hide_following", False))
     post_q = {"author_id": uid} if is_self else {"author_id": uid, "is_draft": {"$ne": True}}
     profile = {
         "id": uid, "name": u["name"], "role": u["role"], "created_at": u.get("created_at"),
+        "bio": u.get("bio", ""),
+        "avatar_file_id": u.get("avatar_file_id"),
+        "avatar_url": avatar_url_for(u),
         "post_count": await db.tasks.count_documents(post_q),
         "is_following": is_following,
         "is_self": is_self,
-        "hide_follows": hide,
+        "hide_followers": hide_followers,
+        "hide_following": hide_following,
     }
-    if hide and not is_self:
+    if hide_followers and not is_self:
         profile["followers_count"] = None
-        profile["following_count"] = None
     else:
         profile["followers_count"] = await db.follows.count_documents({"following_id": uid})
+    if hide_following and not is_self:
+        profile["following_count"] = None
+    else:
         profile["following_count"] = await db.follows.count_documents({"follower_id": uid})
     return profile
 
@@ -717,6 +741,7 @@ async def _follow_user_list(ids: list, current_user: Optional[dict]):
         if current_user:
             is_following = await db.follows.find_one({"follower_id": current_user["id"], "following_id": uid}) is not None
         result.append({"id": uid, "name": u["name"], "role": u["role"], "is_following": is_following,
+                       "avatar_url": avatar_url_for(u), "avatar_file_id": u.get("avatar_file_id"),
                        "is_self": bool(current_user and current_user["id"] == uid)})
     return result
 
@@ -725,7 +750,7 @@ async def get_followers(user_id: str, request: Request):
     current_user = await get_optional_user(request)
     target = await db.users.find_one({"_id": ObjectId(user_id)}) if ObjectId.is_valid(user_id) else None
     is_self = bool(current_user and target and current_user["id"] == str(target["_id"]))
-    if target and target.get("hide_follows") and not is_self:
+    if target and target.get("hide_followers") and not is_self:
         return []
     docs = await db.follows.find({"following_id": user_id}).to_list(1000)
     return await _follow_user_list([d["follower_id"] for d in docs], current_user)
@@ -735,7 +760,7 @@ async def get_following(user_id: str, request: Request):
     current_user = await get_optional_user(request)
     target = await db.users.find_one({"_id": ObjectId(user_id)}) if ObjectId.is_valid(user_id) else None
     is_self = bool(current_user and target and current_user["id"] == str(target["_id"]))
-    if target and target.get("hide_follows") and not is_self:
+    if target and target.get("hide_following") and not is_self:
         return []
     docs = await db.follows.find({"follower_id": user_id}).to_list(1000)
     return await _follow_user_list([d["following_id"] for d in docs], current_user)
