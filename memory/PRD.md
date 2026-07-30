@@ -40,6 +40,11 @@ Bilingual (Russian + English) social platform where teachers publish, share, and
 - Admin: admin@teachhub.com / admin12345
 - Teacher: teacher@teachhub.com / teacher12345
 
+## Implemented — Feature Set 5 (2026-07-30)
+- ✅ "View public profile" now opens a PREVIEW (/u/:id?preview=1) that respects hide-followers/hide-following exactly as other users see it (with a preview banner)
+- ✅ New registrations auto-get ONE private DRAFT welcome post ("👋 Welcome to TeachHub — Guide & AI Prompts") with platform usage instructions + AI prompt examples (single-file interactive HTML; 2-step worksheet prompts), bilingual; hidden from public feed/profile
+- ✅ Verified: backend 100%, frontend 100% (iteration 6)
+
 ## Implemented — Feature Set 4 (2026-07-30)
 - ✅ Solid opaque backgrounds for all toasts, dialogs, and the profile dropdown (light + dark)
 - ✅ Dark-mode contrast overhaul: accent-protection CSS so pastel covers keep dark icons/text, dark surfaces use light text; light theme unchanged
