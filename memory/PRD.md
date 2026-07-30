@@ -40,6 +40,15 @@ Bilingual (Russian + English) social platform where teachers publish, share, and
 - Admin: admin@teachhub.com / admin12345
 - Teacher: teacher@teachhub.com / teacher12345
 
+## Implemented — Feature Set 3 (2026-07-30)
+- ✅ Register confirm-password + eye show/hide toggles on all password fields
+- ✅ Dark mode (theme toggle in header, CSS-variable neo-brutalist theme, persisted)
+- ✅ Draft posts (is_draft): hidden from public feed/search/other users & 404 for guests; visible to author in Studio (badge) and own view
+- ✅ Privacy: "Hide followers & following" setting; public profile hides lists/counts for others
+- ✅ Studio polish: branding shows "TeachHub"; removed redundant fullscreen-preview eye; folder-delete confirmation dialog
+- ✅ Edit page now has a Delete button (with confirm); opaque dialogs & profile dropdown
+- ✅ Verified: 49/49 backend, 9/9 fixes + 5 regressions
+
 ## Implemented — Feature Set 2 (2026-07-29)
 - ✅ Register confirm-password field + eye show/hide toggle on all password inputs (PasswordInput)
 - ✅ Three post types: `html` (interactive iframe), `worksheet` (downloadable images/docs via object storage), `blog` (text + images). Publishable, type-specific rendering (PostContent), and usable as a feed search filter.
