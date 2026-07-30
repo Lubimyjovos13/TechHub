@@ -83,7 +83,7 @@ export default function Profile() {
           <button onClick={() => navigate("/workspace")} data-testid="open-studio" className="flex items-center gap-2 px-4 py-2 bg-sky-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">
             <Palette size={18} weight="bold" /> {t("profile.openStudio")}
           </button>
-          <Link to={`/u/${user.id}`} data-testid="view-public-profile" className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">
+          <Link to={`/u/${user.id}?preview=1`} data-testid="view-public-profile" className="flex items-center gap-2 px-4 py-2 bg-white border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">
             <ArrowSquareOut size={18} weight="bold" /> {t("profile.viewProfile")}
           </Link>
         </div>

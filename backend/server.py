@@ -262,6 +262,80 @@ async def enrich_cards(tasks: list) -> list:
     return [task_card(t, authors.get(t.get("author_id"), "Unknown")) for t in tasks]
 
 # ---------------- Auth Endpoints ----------------
+WELCOME_BODY = """👋 Welcome to TeachHub!
+
+This is your private welcome note (a draft — only you can see it). Here's how to get started and how to use AI tools to create great content.
+
+━━━━━━━━━━━━━━━━━━━━━━
+HOW TO USE TEACHHUB
+━━━━━━━━━━━━━━━━━━━━━━
+• Browse the feed and open any post to run it — no account needed.
+• Publish 3 kinds of posts from the "Publish" button:
+   1) Interactive — a single HTML file that plays inside a safe sandbox.
+   2) Worksheet — downloadable images/documents (PDF, DOCX, XLSX, PPTX).
+   3) Blog — text + images to share teaching experiences.
+• Like ❤, Favorite ⭐, and Follow other teachers.
+• Studio: organize your posts into folders and preview them.
+• Drafts: tick "Save as draft" to keep a post private until you're ready.
+
+━━━━━━━━━━━━━━━━━━━━━━
+PROMPT FOR AI → INTERACTIVE HTML TASK
+━━━━━━━━━━━━━━━━━━━━━━
+Copy this into ChatGPT / Claude / Gemini and fill in the [brackets]:
+
+"Create a SINGLE self-contained HTML file for an interactive [TOPIC] activity for [GRADE] students studying [SUBJECT]. Requirements:
+- Put ALL code in ONE file: HTML, CSS and JavaScript together (inline <style> and <script>). Do NOT split into separate files and do NOT use any external files, frameworks or CDNs.
+- It must run standalone inside a sandboxed iframe with no internet access.
+- Include [N] questions/steps with instant visual feedback, a running score, and a friendly, colorful, accessible UI (large touch targets, good contrast).
+- Add a 'Restart' button. Keep it mobile-friendly.
+Return only the complete HTML file."
+
+Tip: paste the returned code into Publish → Interactive → HTML Code, and use the live Preview.
+
+━━━━━━━━━━━━━━━━━━━━━━
+PROMPTS FOR AI → WORKSHEET (2 steps)
+━━━━━━━━━━━━━━━━━━━━━━
+Step 1 — generate the task/content:
+"Act as a [SUBJECT] teacher. Create [N] [TOPIC] exercises for [GRADE] students, ordered from easy to hard. Include a separate answer key at the end. Keep the language clear and age-appropriate."
+
+Step 2 — turn it into a printable worksheet:
+"Using the exercises above, design a clean, printable ONE-PAGE worksheet. Include: a title, 'Name' and 'Date' fields at the top, numbered questions with enough blank space for students to write answers, simple black-on-white typography, and A4 layout. Provide it as either a print-ready HTML page or a description I can export to PDF."
+
+Then upload your file(s) in Publish → Worksheet.
+
+━━━━━━━━━━━━━━━━━━━━━━
+ДОБРО ПОЖАЛОВАТЬ В TEACHHUB!
+━━━━━━━━━━━━━━━━━━━━━━
+Это ваша личная заметка-черновик (видите её только вы).
+
+Как пользоваться:
+• Листайте ленту и открывайте посты — регистрация не нужна.
+• Публикуйте 3 типа постов: Интерактив (один HTML-файл), Рабочий лист (файлы для скачивания), Блог (текст + картинки).
+• Ставьте лайки, добавляйте в избранное, подписывайтесь на учителей.
+• Студия: раскладывайте посты по папкам. Черновики видны только вам.
+
+Промпт для ИИ → интерактивный HTML:
+"Создай ОДИН самодостаточный HTML-файл с интерактивным заданием по теме [ТЕМА] для [КЛАСС]. Весь код (HTML, CSS, JS) должен быть в одном файле (inline <style> и <script>), без внешних файлов и CDN. Работает автономно в песочнице. Добавь [N] вопросов с мгновенной обратной связью, счётом очков, яркий доступный интерфейс и кнопку 'Заново'. Верни только полный HTML."
+
+Промпты для ИИ → рабочий лист (2 шага):
+Шаг 1 (задание): "Ты учитель [ПРЕДМЕТ]. Составь [N] заданий по теме [ТЕМА] для [КЛАСС] от простого к сложному, с ответами в конце."
+Шаг 2 (лист): "На основе заданий выше свёрстай аккуратный печатный рабочий лист на ОДНУ страницу: заголовок, поля 'Имя' и 'Дата', пронумерованные вопросы с местом для ответа, чёрно-белая типографика, формат A4. Дай готовую к печати HTML-страницу или описание для экспорта в PDF."
+
+Happy teaching! 🎓"""
+
+async def create_welcome_post(user_id: str):
+    now = datetime.now(timezone.utc).isoformat()
+    await db.tasks.insert_one({
+        "type": "blog",
+        "title": "👋 Welcome to TeachHub — Guide & AI Prompts",
+        "subject": "other", "grade": "university",
+        "description": "Your private starter guide: how to use TeachHub and prompts for generating tasks with AI.",
+        "html_code": None, "body": WELCOME_BODY, "files": [],
+        "folder_id": None, "tags": ["guide", "welcome"],
+        "views": 0, "likes_count": 0, "is_draft": True,
+        "author_id": user_id, "created_at": now, "updated_at": now,
+    })
+
 @api_router.post("/auth/register")
 async def register(body: RegisterInput):
     email = body.email.lower()
@@ -272,6 +346,7 @@ async def register(body: RegisterInput):
            "created_at": datetime.now(timezone.utc).isoformat()}
     res = await db.users.insert_one(doc)
     doc["_id"] = res.inserted_id
+    await create_welcome_post(str(res.inserted_id))
     token = create_access_token(str(res.inserted_id), email)
     return {"token": token, "user": user_public(doc)}
 

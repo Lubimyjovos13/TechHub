@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import api, { FILE_URL } from "@/lib/api";
 import { AssignmentCard } from "@/components/AssignmentCard";
 import { FollowButton, UserListItem } from "@/components/FollowButton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { UserCircle, Shield } from "@phosphor-icons/react";
+import { UserCircle, Shield, Eye } from "@phosphor-icons/react";
 
 export default function PublicProfile() {
   const { t } = useTranslation();
   const { id } = useParams();
+  const [params] = useSearchParams();
+  const preview = params.get("preview") === "1";
   const [profile, setProfile] = useState(null);
   const [posts, setPosts] = useState([]);
   const [followers, setFollowers] = useState([]);
@@ -40,11 +42,17 @@ export default function PublicProfile() {
     </div>
   );
 
-  const showFollowers = !(profile.hide_followers && !profile.is_self);
-  const showFollowing = !(profile.hide_following && !profile.is_self);
+  const viewerIsSelf = profile.is_self && !preview;
+  const showFollowers = !(profile.hide_followers && !viewerIsSelf);
+  const showFollowing = !(profile.hide_following && !viewerIsSelf);
 
   return (
     <div className="max-w-[1500px] mx-auto px-4 sm:px-6 py-8">
+      {preview && profile.is_self && (
+        <div className="nb-card p-3 mb-4 bg-amber-100 flex items-center gap-2 font-bold text-sm" data-testid="preview-banner">
+          <Eye size={18} weight="bold" /> {t("follow.previewNote")}
+        </div>
+      )}
       <div className="nb-card p-6 mb-8 nb-rise">
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
           <div className="w-16 h-16 bg-sky-200 border-2 border-slate-900 rounded-lg flex items-center justify-center shrink-0 overflow-hidden">
