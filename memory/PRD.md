@@ -40,6 +40,14 @@ Bilingual (Russian + English) social platform where teachers publish, share, and
 - Admin: admin@teachhub.com / admin12345
 - Teacher: teacher@teachhub.com / teacher12345
 
+## Implemented — Feature Set 4 (2026-07-30)
+- ✅ Solid opaque backgrounds for all toasts, dialogs, and the profile dropdown (light + dark)
+- ✅ Dark-mode contrast overhaul: accent-protection CSS so pastel covers keep dark icons/text, dark surfaces use light text; light theme unchanged
+- ✅ Privacy split into TWO independent toggles — hide followers list / hide following list (hidden from other users, owner still sees)
+- ✅ Profile avatar upload (object storage) + bio; shown on public profile, header trigger, and follower/following lists
+- ✅ /app/DATABASE.md — full database schema documentation
+- ✅ Verified: frontend 4/4 fixes 100%; backend 52/54 (1 obsolete renamed-field test, 1 flaky timeout)
+
 ## Implemented — Feature Set 3 (2026-07-30)
 - ✅ Register confirm-password + eye show/hide toggles on all password fields
 - ✅ Dark mode (theme toggle in header, CSS-variable neo-brutalist theme, persisted)
