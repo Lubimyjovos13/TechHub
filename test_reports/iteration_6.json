@@ -1,0 +1,22 @@
+{
+  "summary": "Round 6 focused test for two fixes: (FIX1) Profile 'View public profile' opens /u/<id>?preview=1 and respects hide_followers/hide_following as a non-self viewer, and (FIX2) new user registration auto-creates one private DRAFT welcome blog post. Backend pytest suite (10 tests) all pass. Frontend Playwright verified all three preview cases (hide_followers only, hide_following only, no flags) plus welcome draft creation & privacy.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_fixes_round6.py",
+    "/app/test_reports/pytest/round6.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Known dev-only hydration warning: <span> inside <option> (Feed.jsx select with dynamic option children). Tooling noise per main agent, not a bug.",
+    "backend create_welcome_post is idempotent-by-design only on register (not on subsequent logins) which matches the spec (exactly ONE welcome draft per user)."
+  ],
+  "updated_files": ["/app/backend/tests/test_fixes_round6.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "teacher@teachhub.com / teacher12345 (restored hide_followers=false, hide_following=false after tests)",
+  "seed_data_creation": "Created several throwaway TEST_wc_*@example.com users (each auto-gets one welcome draft). Restored teacher privacy flags to false.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Round 6 fixes verified end-to-end. Preview UI: /u/<id>?preview=1 correctly shows preview-banner, hides stat-followers+pp-tab-followers when hide_followers=true, hides stat-following+pp-tab-following when hide_following=true. FIX2: register endpoint creates ONE '👋 Welcome to TeachHub — Guide & AI Prompts' blog draft (is_draft=true); excluded from GET /api/tasks search, from public GET /api/users/<id>/tasks, and returns 404 for guests/other users. Author sees it in Studio with ws-draft-<id> badge and can open it. Light regression (login, publish blog, feed) passes.",
+  "rca of the issue": "N/A — no bugs found this round."
+}

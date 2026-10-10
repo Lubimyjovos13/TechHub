@@ -1,0 +1,130 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --nb-bg: #F8FAFC;
+  --nb-surface: #FFFFFF;
+  --nb-text: #0F172A;
+  --nb-text-muted: #475569;
+  --nb-border: #0F172A;
+  --nb-shadow: rgba(15,23,42,1);
+}
+
+.dark {
+  --nb-bg: #0B1220;
+  --nb-surface: #1E293B;
+  --nb-text: #F1F5F9;
+  --nb-text-muted: #A9B6C7;
+  --nb-border: #E2E8F0;
+  --nb-shadow: rgba(226,232,240,0.85);
+}
+
+body {
+  margin: 0;
+  font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background-color: var(--nb-bg);
+  color: var(--nb-text);
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+h1, h2, h3, h4, .font-heading { font-family: 'Outfit', sans-serif; }
+.font-body { font-family: 'Manrope', sans-serif; }
+
+::selection { background: #FDE047; color: #0F172A; }
+
+@layer components {
+  .nb-border { border-color: var(--nb-border); }
+  .nb-shadow { box-shadow: 4px 4px 0px 0px var(--nb-shadow); }
+  .nb-shadow-sm { box-shadow: 2px 2px 0px 0px var(--nb-shadow); }
+  .nb-shadow-lg { box-shadow: 6px 6px 0px 0px var(--nb-shadow); }
+
+  .nb-press { transition: transform 150ms ease-out, box-shadow 150ms ease-out; }
+  .nb-press:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0px 0px var(--nb-shadow); }
+  .nb-press:active { transform: translate(4px, 4px); box-shadow: none; }
+
+  .nb-card {
+    background: var(--nb-surface);
+    border: 2px solid var(--nb-border);
+    border-radius: 0.5rem;
+    box-shadow: 4px 4px 0px 0px var(--nb-shadow);
+    color: var(--nb-text);
+  }
+
+  .nb-input {
+    border: 2px solid var(--nb-border);
+    border-radius: 0.375rem;
+    background: var(--nb-surface);
+    color: var(--nb-text);
+    padding: 0.5rem 0.75rem;
+    width: 100%;
+  }
+  .nb-input:focus { outline: none; box-shadow: 0 0 0 2px #7DD3FC; }
+  .nb-input option { background: var(--nb-surface); color: var(--nb-text); }
+}
+
+/* ============ DARK MODE REMAPS ============ */
+/* Structural white surfaces -> dark surface */
+.dark .bg-white { background-color: var(--nb-surface) !important; }
+/* Borders visible on dark */
+.dark .border-slate-900 { border-color: var(--nb-border) !important; }
+/* Text on dark surfaces -> light */
+.dark .text-slate-900, .dark .text-slate-800 { color: var(--nb-text) !important; }
+.dark .text-slate-700, .dark .text-slate-600, .dark .text-slate-500 { color: var(--nb-text-muted) !important; }
+.dark .text-slate-400 { color: #7E8CA0 !important; }
+
+/* ---- ACCENT (pastel/solid) blocks keep DARK text + DARK borders (light bg stays) ---- */
+.dark .bg-sky-200, .dark .bg-sky-300,
+.dark .bg-violet-200, .dark .bg-violet-300,
+.dark .bg-emerald-200, .dark .bg-emerald-300,
+.dark .bg-rose-200, .dark .bg-rose-300,
+.dark .bg-amber-100, .dark .bg-amber-200, .dark .bg-amber-300,
+.dark .bg-orange-200, .dark .bg-slate-50, .dark .bg-slate-100, .dark .bg-slate-200,
+.dark .bg-yellow-300, .dark .bg-red-300, .dark .bg-red-400,
+.dark .bg-sky-200 *, .dark .bg-sky-300 *,
+.dark .bg-violet-200 *, .dark .bg-violet-300 *,
+.dark .bg-emerald-200 *, .dark .bg-emerald-300 *,
+.dark .bg-rose-200 *, .dark .bg-rose-300 *,
+.dark .bg-amber-100 *, .dark .bg-amber-200 *, .dark .bg-amber-300 *,
+.dark .bg-orange-200 *, .dark .bg-slate-50 *, .dark .bg-slate-100 *, .dark .bg-slate-200 *,
+.dark .bg-yellow-300 *, .dark .bg-red-300 *, .dark .bg-red-400 * {
+  color: #0F172A !important;
+}
+/* Restore dark borders inside accent blocks (they were lightened above) */
+.dark .bg-sky-200, .dark .bg-sky-300,
+.dark .bg-violet-200, .dark .bg-emerald-200, .dark .bg-emerald-300,
+.dark .bg-rose-200, .dark .bg-rose-300, .dark .bg-amber-100, .dark .bg-amber-200, .dark .bg-amber-300,
+.dark .bg-orange-200, .dark .bg-slate-100, .dark .bg-slate-200,
+.dark .bg-yellow-300, .dark .bg-red-300, .dark .bg-red-400,
+.dark .bg-sky-200 .border-slate-900, .dark .bg-sky-300 .border-slate-900,
+.dark .bg-violet-200 .border-slate-900, .dark .bg-emerald-200 .border-slate-900, .dark .bg-emerald-300 .border-slate-900,
+.dark .bg-rose-200 .border-slate-900, .dark .bg-rose-300 .border-slate-900,
+.dark .bg-amber-100 .border-slate-900, .dark .bg-amber-200 .border-slate-900, .dark .bg-amber-300 .border-slate-900,
+.dark .bg-orange-200 .border-slate-900,
+.dark .bg-yellow-300 .border-slate-900, .dark .bg-red-300 .border-slate-900, .dark .bg-red-400 .border-slate-900 {
+  border-color: #0F172A !important;
+}
+/* White chips sitting inside accent covers stay white (so their dark text/border read) */
+.dark .bg-sky-200 .bg-white, .dark .bg-sky-300 .bg-white,
+.dark .bg-violet-200 .bg-white, .dark .bg-emerald-200 .bg-white, .dark .bg-emerald-300 .bg-white,
+.dark .bg-rose-200 .bg-white, .dark .bg-rose-300 .bg-white,
+.dark .bg-amber-100 .bg-white, .dark .bg-amber-200 .bg-white, .dark .bg-amber-300 .bg-white,
+.dark .bg-orange-200 .bg-white,
+.dark .bg-yellow-300 .bg-white, .dark .bg-red-300 .bg-white, .dark .bg-red-400 .bg-white {
+  background-color: #FFFFFF !important;
+}
+
+/* Dark slate solid surfaces keep light text */
+.dark .bg-slate-900 { color: #F1F5F9 !important; }
+.dark .bg-slate-900 * { color: #F1F5F9 !important; }
+
+/* Toast / Sonner popovers solid */
+.dark [data-sonner-toast] { background: var(--nb-surface) !important; color: var(--nb-text) !important; border-color: var(--nb-border) !important; }
+
+@keyframes nb-rise {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.nb-rise { animation: nb-rise 0.45s ease-out both; }

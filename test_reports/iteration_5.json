@@ -1,0 +1,38 @@
+{
+  "summary": "Round-5 bug-fix testing for TeachHub. Added new pytest suite test_fixes_round5.py (5 tests, all pass) covering split hide_followers/hide_following flags and avatar/bio in profile. Ran full backend regression: 52/54 pytest pass (1 obsolete test in round-4 asserting old `hide_follows` field which was renamed; 1 intermittent connect-timeout that passed on retry). All 4 requested UI fixes verified end-to-end on the public REACT_APP_BACKEND_URL, plus regressions (login, dark-mode persistence, language RU/EN toggle).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_fixes_round5.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_fixes_round4.py",
+    "/app/test_reports/pytest/round5.xml",
+    "/app/test_reports/pytest/round5_all.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: Update /app/backend/tests/test_fixes_round4.py::TestHideFollows::test_hide_follows_toggle — it still references the removed `hide_follows` field. Either delete the class (covered by test_fixes_round5.py) or migrate its assertions to hide_followers/hide_following. Not blocking; feature works."
+  ],
+  "critical_code_review_comments": [
+    "server.py is now 827 lines (up from 801) — still monolithic (models + routes + storage + auth). Recommend splitting into routers/services (unchanged from iterations 3-4).",
+    "The `is_self` check in build_profile is via string comparison of current_user['id'] with str(u['_id']) — works, but `user_public` in _follow_user_list also computes it. Extract a helper. Minor.",
+    "avatar_file_id='' (empty string) is coerced to None by `update['avatar_file_id'] = body.avatar_file_id or None` — this is correct clearing behavior and is confirmed by test_clear_bio_and_avatar. Good.",
+    "PublicProfile.jsx shows followers_count/following_count via <Stat/> even when the value is null — visible checks (showFollowers/showFollowing) hide the entire block, so this is fine. But if you ever render the null value directly it would show 'null' — defensive coalesce to 0 recommended.",
+    "Sonner Toaster global toastOptions.style uses CSS vars (var(--nb-surface)) — resolves per-toast at render time; works but note that if theme changes while a toast is visible, the toast bg won't update until the next toast. Cosmetic.",
+    "FollowButton.jsx UserListItem renders avatar_url; ensure fallback UserCircle is shown when avatar_url is null (verified visually — works)."
+  ],
+  "updated_files": ["/app/backend/tests/test_fixes_round5.py (new)"],
+  "success_rate": {"backend": "52/54 (96.3%) — 1 obsolete test on renamed field, 1 flaky network timeout", "frontend": "100% (4/4 fixes + regressions)"},
+  "test_credentials": "admin@teachhub.com/admin12345 and teacher@teachhub.com/teacher12345 both verified. One throwaway teacher registered via API and deleted after tests. Teacher's hide_followers/hide_following/bio/avatar_file_id were restored to defaults (false/false/''/None) after testing — verified via GET /api/auth/me.",
+  "seed_data_creation": "Ephemeral: 1 uploaded avatar file (auto-orphaned when avatar_file_id cleared), 1 throwaway user (deleted). Teacher account fully restored.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Round-5 verified end-to-end: FIX1 (toast/dialog/dropdown opaque) — LIGHT toast bg=rgb(255,255,255), profile-menu bg=rgb(255,255,255); DARK profile-menu=rgb(30,41,59), delete-account dialog bg=rgb(30,41,59), all opacity=1. FIX2 (dark contrast) — dark body bg=rgb(11,18,32), accent pastel covers (sky/violet/emerald/rose/amber/orange) keep dark icons/text via .dark .bg-<color> * { color:#0F172A !important } remap in index.css; verified visually on feed page; logo icon color rgb(15,23,42) inside light logo card. FIX3 (split hide toggles) — Profile Settings has settings-hide-followers + settings-hide-following as two separate checkboxes; setting hide_followers=True hides stat-followers + pp-tab-followers only (following visible); setting hide_following=True hides only stat-following + pp-tab-following; backend GET /api/users/<id> returns followers_count=null when hidden and /followers returns [] for others, and analogous for following. Owner still sees own lists+counts. FIX4 (avatar+bio) — POST /api/upload -> file_id; PUT /api/users/me accepts bio + avatar_file_id; response includes avatar_url=/api/files/<fid>; header profile-menu-trigger shows <img>; PublicProfile shows profile-avatar + profile-bio; follower/following list items include avatar_url. Regressions: login, dark-mode persistence (localStorage th_theme=dark survives reload), lang RU/EN toggle (localStorage i18nextLng=ru) all pass. Round-4 obsolete test noted in action_items.",
+  "verified_fixes": {
+    "FIX1_toasts_dialogs_dropdown_opaque": true,
+    "FIX2_dark_mode_contrast": true,
+    "FIX3_split_hide_followers_and_hide_following": true,
+    "FIX4_avatar_upload_and_bio": true,
+    "REGRESSION_login_dark_persistence_lang": true
+  }
+}

@@ -1,0 +1,84 @@
+{
+  "theme": "light",
+  "typography": {
+    "heading_font": "Outfit",
+    "body_font": "Manrope",
+    "strategy": "The 'Editorial Future' pairing. 'Outfit' provides a modern, geometric, and friendly aesthetic suitable for an educational platform. 'Manrope' offers clean, highly readable body text, crucial for bilingual support (Russian/English text expansion). Use tracking-tight for H1/H2."
+  },
+  "colors": {
+    "archetype": "ARCHETYPE 3: PASTEL & SOFT (Neo-Brutalist Twist)",
+    "description": "Optimistic, light, tactile pastels paired with hard charcoal borders to avoid looking childish and to create a structured 'sandbox' feel. Ideal for a safe, engaging educational environment.",
+    "palette": {
+      "primary": "#BAE6FD",
+      "primary_hover": "#7DD3FC",
+      "secondary": "#FDE047",
+      "secondary_hover": "#FACC15",
+      "accent_green": "#A7F3D0",
+      "accent_purple": "#DDD6FE",
+      "background": "#F8FAFC",
+      "surface": "#FFFFFF",
+      "text_primary": "#0F172A",
+      "text_secondary": "#475569",
+      "border": "#0F172A"
+    }
+  },
+  "visual_enhancers": {
+    "surface_strategy": "Neo-Brutalist Tactile. Cards and interactive elements MUST have flat solid backgrounds (White, or Pastel), 2px border (#0F172A), and a solid hard drop shadow (e.g., shadow-[4px_4px_0px_0px_rgba(15,23,42,1)]).",
+    "hover_effects": "On hover, elements translate to simulate pressing down: translate-x-[2px] translate-y-[2px] shadow-[2px_2px_0px_0px_rgba(15,23,42,1)]. Active state: translate-x-[4px] translate-y-[4px] shadow-none.",
+    "glassmorphism": "Avoid glassmorphism for this Neo-brutalist theme. The header MUST use a solid background (bg-white or bg-slate-50) with a hard bottom border (border-b-2 border-slate-900)."
+  },
+  "components": {
+    "card": "Solid white background, 2px border-slate-900, hard shadow. Contains: Thumbnail, Title, Subject/Grade badges, Author info, Like/Favorite counts. Generous internal padding (p-4 or p-6).",
+    "badges": "Pill-shaped (rounded-full), pastel backgrounds with 1px dark border and text-xs font-bold text-slate-900.",
+    "buttons": "Primary CTA: Sunny Yellow (bg-yellow-300), 2px dark border, hard shadow, rounded-md. Secondary: White background, 2px dark border.",
+    "iframe_player": "Wrap the sandboxed iframe in a container resembling a retro OS window or browser frame. Top bar with 3 decorative dots (red, yellow, green) to visually signify a 'sandbox'.",
+    "tabs": "Override Shadcn tabs to have a Neo-brutalist look: hard borders on the active tab, solid colors instead of subtle grays.",
+    "inputs": "Shadcn inputs customized with border-2 border-slate-900, rounded-md. focus:ring-2 focus:ring-sky-300 focus:outline-none."
+  },
+  "grids": {
+    "feed_grid": "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5. 10 items per page fits well in various grid configurations. Gap should be gap-6 or gap-8.",
+    "publish_grid": "grid-cols-1 lg:grid-cols-2 with gap-8 for the side-by-side publish form and live preview."
+  },
+  "layouts": {
+    "general": "Generous Spacing Philosophy. Use p-6, p-8, p-12. Containers with borders MUST have internal padding to prevent text collision.",
+    "publish_form": "Left side: Form controls (metadata, HTML code editor). Right side: Sticky live iframe preview (h-[80vh]) to see changes instantly.",
+    "assignment_view": "Top metadata header (Title, Author, Stats). Full-width or large container (aspect-video) for the sandboxed iframe player. Action buttons (Like, Favorite, Report) below the iframe.",
+    "admin_dashboard": "High Density Grid (MODE B). Use a table with sticky headers for moderation (approving/rejecting assignments, viewing reports). Tight spacing in the table, but generous on the page."
+  },
+  "motion": {
+    "interactions": "Crisp, tactile micro-interactions. 'Press down' effect on buttons and cards. Fast transitions (duration-150 ease-out).",
+    "forbidden": "No universal 'transition: all'. Exclude transforms from universal transitions to prevent breaking the press-down effect."
+  },
+  "accessibility": {
+    "contrast": "High contrast guaranteed by deep slate text (#0F172A) and borders on pastel/light backgrounds.",
+    "focus": "All interactive elements MUST have prominent focus rings (focus:ring-2 focus:ring-offset-2 focus:ring-slate-900).",
+    "bilingual": "UI MUST accommodate varying text lengths (Russian text is typically 20-30% longer than English). Avoid fixed-width containers or heights for text elements. Use flex and wrap appropriately."
+  },
+  "media": {
+    "strategy": "Use abstract or subject-specific images for assignment thumbnails if the user hasn't provided one. Icons should be clear and friendly."
+  },
+  "3d_libraries": {
+    "strategy": "Not required for the core UI, as the primary interactive content is hosted inside user-generated HTML iframes. Keep the outer platform lightweight."
+  },
+  "image_urls": {
+    "math_placeholder": {
+      "url": "https://images.unsplash.com/photo-1635372722656-389f87a941b7?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA3MDB8MHwxfHNlYXJjaHwxfHxtYXRoJTIwZWR1Y2F0aW9ufGVufDB8fHx8MTc4NTE2OTg0Mnww&ixlib=rb-4.1.0&q=85",
+      "description": "Blackboard with math equations, used as a placeholder cover for Math assignments."
+    },
+    "physics_placeholder": {
+      "url": "https://images.unsplash.com/photo-1517420704952-d9f39e95b43e?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1MDZ8MHwxfHNlYXJjaHwxfHxwaHlzaWNzJTIwZXhwZXJpbWVudCUyMGVkdWNhdGlvbnxlbnwwfHx8fDE3ODI2ODQzOTB8MA&ixlib=rb-4.1.0&q=85",
+      "description": "Electronic circuit boards, used as a placeholder cover for Physics assignments."
+    }
+  },
+  "instructions_to_main_agent": [
+    "Install and use `@phosphor-icons/react` for UI icons.",
+    "Use `Outfit` for all headings and `Manrope` for body text. Do not use Inter for headings.",
+    "Implement a 'Neo-Brutalist' aesthetic: 2px solid dark borders (#0F172A) and solid drop shadows for cards, buttons, and form inputs.",
+    "Ensure the header has a solid background with a 2px bottom border, NOT fully transparent.",
+    "For the Assignment View page, style the iframe container to look like a sandbox/window (e.g., adding a fake OS window title bar).",
+    "Add 'data-testid' attributes to all interactive elements and key information.",
+    "Handle bilingual text (RU/EN) gracefully by using flexible layouts and generous padding. Provide a clear language toggle in the header.",
+    "The iframe MUST have the 'sandbox' attribute enabled for security (e.g., sandbox='allow-scripts allow-same-origin')."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": "Avoid generic centered layouts and simplistic gradients. Create depth through layered design elements (hard shadows in this case). Do not use 'transition: all'. Do not center align the app container. Use modern button styles (Neo-Brutalist in this case). Add micro-animations (press down effects). Never use AI assistant emoji characters for icons. Use sonner for toasts. Prioritize building robust, visually distinct custom components over default Shadcn styles."
+}

@@ -1,0 +1,44 @@
+{
+  "summary": "Round-4 bug-fix testing for TeachHub. Ran 49 backend pytest tests (all existing 43 + 6 new for drafts/hide_follows) — 100% pass. Verified all 9 requested UI fixes on the public REACT_APP_BACKEND_URL + core regressions (login, feed pagination, like/favorite, follow, language toggle, dark mode persistence).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/test_new_features.py",
+    "/app/backend/tests/test_fixes_round4.py",
+    "/app/test_reports/pytest/round4.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 801 lines with models, routes, storage & auth all in one module. Same recommendation as iteration 3: split into routers/services.",
+    "Dev-only React hydration warning '<span> in <option>' still logged from Feed.jsx select options. Tooling noise (visual editor injecting span into <option>), not a functional bug — safe to ignore per main agent's note.",
+    "Workspace.jsx: draft filter logic filters by folder only; drafts still appear under 'All'/type/subject folders which is correct, but there is no explicit 'Drafts' folder for quick access — nice-to-have.",
+    "Backend build_profile returns hide_follows=True with followers_count/following_count=null when hidden; frontend PublicProfile correctly hides those stats. Consider also omitting the followers/following arrays entirely from response for stronger privacy (currently returns [] which is fine).",
+    "Header.jsx renders theme-toggle icon based on state, but on initial render uses useState(getTheme()); if applyTheme is triggered elsewhere the icon can desync. Consider useEffect subscribing to storage events."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_fixes_round4.py (new)"
+  ],
+  "success_rate": {"backend": "100% (49/49)", "frontend": "100% (9/9 fixes + 5 regression flows)"},
+  "test_credentials": "admin@teachhub.com/admin12345, teacher@teachhub.com/teacher12345 verified. Throwaway users registered & deleted during test run.",
+  "seed_data_creation": "Ephemeral: one folder, one draft task, one throwaway user for hide_follows cross-user check — all cleaned up. Teacher's hide_follows toggled ON then OFF back to original state.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 9 round-4 fixes verified end-to-end: FIX1 folder-delete confirm (ws-folder-delete-confirm/cancel) works with cancel keeping folder; FIX2 assignment delete dialog has solid white bg (rgb(255,255,255)); FIX3 /edit/<id> shows publish-delete → publish-confirm-delete → navigates to /workspace; FIX4 profile-menu-trigger dropdown solid white; FIX5 ws-logo text is 'TeachHub'; FIX6 settings-hide-follows lives inside Settings tab (must click tab first) — when saved, PublicProfile as another user hides stat-followers/stat-following/pp-tab-followers AND API returns hide_follows=true with counts=null; FIX7 draft flow: POST /api/tasks with is_draft=true → ws-draft-<id> and view-draft-badge visible to owner, GET /api/tasks/<id> 404 for guest & other user, excluded from list_tasks/following_feed; FIX8 ws-eye-toggle removed; FIX9 theme-toggle adds/removes 'dark' on documentElement, persists in localStorage th_theme, and survives reload. Regressions: like/favorite toggle, feed pagination (18 total posts, 2 pages @ 10/page), lang-toggle RU↔EN all working.",
+  "verified_fixes": {
+    "FIX1_folder_delete_confirm": true,
+    "FIX2_task_delete_dialog_opaque": true,
+    "FIX3_edit_delete_button": true,
+    "FIX4_profile_menu_opaque": true,
+    "FIX5_studio_branding_teachhub": true,
+    "FIX6_hide_follows_toggle": true,
+    "FIX7_draft_post_flow": true,
+    "FIX8_no_ws_eye_toggle": true,
+    "FIX9_dark_mode_toggle_and_persistence": true,
+    "REGRESSION_login_like_favorite_follow_pagination_lang": true
+  }
+}
