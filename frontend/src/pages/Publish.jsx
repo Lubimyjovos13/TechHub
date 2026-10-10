@@ -32,6 +32,8 @@ export default function Publish() {
   const [files, setFiles] = useState([]);
   const [folders, setFolders] = useState([]);
   const [isDraft, setIsDraft] = useState(false);
+  const [pinned, setPinned] = useState(false);
+  const [highlightColor, setHighlightColor] = useState("");
   const [delOpen, setDelOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -52,6 +54,8 @@ export default function Publish() {
       setForm({ title: d.title, subject: d.subject, grade: d.grade, description: d.description || "", tags: (d.tags || []).join(", "), html_code: d.html_code || SAMPLE, body: d.body || "", folder_id: d.folder_id || "" });
       setFiles(d.files || []);
       setIsDraft(!!d.is_draft);
+      setPinned(!!d.pinned);
+      setHighlightColor(d.highlight_color || "");
     }).catch(() => setError(t("common.error"))).finally(() => setFetching(false));
   }, [id, isEdit, t]);
 
@@ -95,6 +99,7 @@ export default function Publish() {
       tags: form.tags.split(",").map((x) => x.trim()).filter(Boolean),
       is_draft: isDraft,
     };
+    if (user?.role === "admin") { payload.pinned = pinned; payload.highlight_color = highlightColor || null; }
     try {
       let res;
       if (isEdit) { res = await api.put(`/tasks/${id}`, payload); toast.success(t("publish.updated")); }
@@ -205,12 +210,34 @@ export default function Publish() {
             </div>
             <div>
               <label className="block font-bold text-sm mb-1">{t("publish.folder")}</label>
-              <select value={form.folder_id} onChange={set("folder_id")} data-testid="publish-folder" className="nb-input font-semibold">
-                <option value="">{t("publish.noFolder")}</option>
-                {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-              </select>
+              <div className="flex gap-2">
+                <select value={form.folder_id} onChange={set("folder_id")} data-testid="publish-folder" className="nb-input font-semibold">
+                  <option value="">{t("publish.noFolder")}</option>
+                  {folders.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                </select>
+                <button type="button" data-testid="publish-new-folder" onClick={async () => {
+                  const name = window.prompt(t("workspace.folderName"));
+                  if (!name || !name.trim()) return;
+                  try { const r = await api.post("/folders", { name: name.trim() }); setFolders((p) => [...p, r.data]); setForm((f) => ({ ...f, folder_id: r.data.id })); }
+                  catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
+                }} className="px-3 bg-emerald-200 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press shrink-0">+</button>
+              </div>
             </div>
           </div>
+
+          {user?.role === "admin" && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 p-3 border-2 border-slate-900 rounded-md bg-amber-100">
+              <label className="flex items-center gap-2 font-bold text-sm cursor-pointer">
+                <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} data-testid="publish-pinned" className="w-5 h-5 accent-slate-900" />
+                {t("adminx.pin")}
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-sm">{t("adminx.highlight")}</span>
+                <input type="color" value={highlightColor || "#ffffff"} onChange={(e) => setHighlightColor(e.target.value)} data-testid="publish-highlight" className="w-10 h-9 border-2 border-slate-900 rounded" />
+                {highlightColor && <button type="button" onClick={() => setHighlightColor("")} className="text-xs font-bold text-red-600 underline">{t("publish.remove")}</button>}
+              </div>
+            </div>
+          )}
 
           {error && <p className="text-red-600 font-semibold text-sm" data-testid="publish-error">{error}</p>}
 

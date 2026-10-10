@@ -33,6 +33,7 @@ export const AssignmentCard = ({ task }) => {
       to={`/assignment/${task.id}`}
       data-testid={`assignment-card-${task.id}`}
       className="nb-card nb-press flex flex-col overflow-hidden group"
+      style={task.highlight_color ? { background: task.highlight_color } : undefined}
     >
       <div className={`${style.bg} border-b-2 border-slate-900 h-32 flex items-center justify-center relative overflow-hidden`}>
         {coverImage ? (

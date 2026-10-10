@@ -178,6 +178,25 @@ class TaskInput(BaseModel):
     folder_id: Optional[str] = None
     tags: List[str] = Field(default_factory=list)
     is_draft: bool = False
+    pinned: Optional[bool] = None
+    highlight_color: Optional[str] = None
+
+class CommentInput(BaseModel):
+    body: str = Field(min_length=1, max_length=2000)
+
+class ForgotPasswordInput(BaseModel):
+    email: EmailStr
+
+class ResetPasswordInput(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
+
+class ErrorReportInput(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+    url: Optional[str] = Field(default=None, max_length=500)
+
+class ErrorStatusInput(BaseModel):
+    status: str
 
 class FolderInput(BaseModel):
     name: str = Field(min_length=1, max_length=60)
@@ -241,6 +260,9 @@ async def task_public(t: dict, current_user: Optional[dict] = None) -> dict:
         "created_at": t.get("created_at"),
         "updated_at": t.get("updated_at"),
         "is_draft": t.get("is_draft", False),
+        "pinned": t.get("pinned", False),
+        "highlight_color": t.get("highlight_color"),
+        "is_guide": t.get("is_guide", False),
         "liked": liked,
         "favorited": favorited,
     }
@@ -249,6 +271,8 @@ def task_card(t: dict, author_name: str = "Unknown") -> dict:
     d = {k: t[k] for k in t if k not in ("html_code", "body", "_id")}
     d["id"] = str(t["_id"])
     d["type"] = t.get("type", "html")
+    d["pinned"] = t.get("pinned", False)
+    d["highlight_color"] = t.get("highlight_color")
     d["author_name"] = author_name
     return d
 
@@ -324,17 +348,12 @@ Then upload your file(s) in Publish → Worksheet.
 Happy teaching! 🎓"""
 
 async def create_welcome_post(user_id: str):
-    now = datetime.now(timezone.utc).isoformat()
-    await db.tasks.insert_one({
-        "type": "blog",
-        "title": "👋 Welcome to TeachHub — Guide & AI Prompts",
-        "subject": "other", "grade": "university",
-        "description": "Your private starter guide: how to use TeachHub and prompts for generating tasks with AI.",
-        "html_code": None, "body": WELCOME_BODY, "files": [],
-        "folder_id": None, "tags": ["guide", "welcome"],
-        "views": 0, "likes_count": 0, "is_draft": True,
-        "author_id": user_id, "created_at": now, "updated_at": now,
-    })
+    guide = await db.tasks.find_one({"is_guide": True})
+    if guide:
+        exists = await db.favorites.find_one({"user_id": user_id, "task_id": str(guide["_id"])})
+        if not exists:
+            await db.favorites.insert_one({"user_id": user_id, "task_id": str(guide["_id"]),
+                                           "created_at": datetime.now(timezone.utc).isoformat()})
 
 @api_router.post("/auth/register")
 async def register(body: RegisterInput):
@@ -356,6 +375,7 @@ async def login(body: LoginInput):
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    await db.users.update_one({"_id": user["_id"]}, {"$set": {"last_login_at": datetime.now(timezone.utc).isoformat()}})
     token = create_access_token(str(user["_id"]), email)
     return {"token": token, "user": user_public(user)}
 
@@ -393,7 +413,7 @@ async def list_tasks(
     q["is_draft"] = {"$ne": True}
     total = await db.tasks.count_documents(q)
     skip = (page - 1) * limit
-    cursor = db.tasks.find(q).sort("created_at", -1).skip(skip).limit(limit)
+    cursor = db.tasks.find(q).sort([("pinned", -1), ("created_at", -1)]).skip(skip).limit(limit)
     docs = [t async for t in cursor]
     items = await enrich_cards(docs)
     return {"items": items, "total": total, "page": page, "limit": limit,
@@ -411,9 +431,16 @@ async def get_task(task_id: str, request: Request):
         is_owner = current_user and (current_user["id"] == t.get("author_id") or current_user.get("role") == "admin")
         if not is_owner:
             raise HTTPException(status_code=404, detail="Task not found")
-    await db.tasks.update_one({"_id": t["_id"]}, {"$inc": {"views": 1}})
-    t["views"] = t.get("views", 0) + 1
     return await task_public(t, current_user)
+
+@api_router.post("/tasks/{task_id}/view")
+async def increment_view(task_id: str):
+    if not ObjectId.is_valid(task_id):
+        raise HTTPException(status_code=404, detail="Task not found")
+    r = await db.tasks.update_one({"_id": ObjectId(task_id)}, {"$inc": {"views": 1}})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {"ok": True}
 
 def validate_and_build(body: TaskInput, user: dict) -> dict:
     if body.type not in POST_TYPES:
@@ -431,7 +458,7 @@ def validate_and_build(body: TaskInput, user: dict) -> dict:
     elif body.type == "blog":
         if not body.body or not body.body.strip():
             raise HTTPException(status_code=400, detail="Body text is required for blog posts")
-    return {
+    doc = {
         "type": body.type,
         "title": sanitize_text(body.title),
         "subject": body.subject,
@@ -444,6 +471,12 @@ def validate_and_build(body: TaskInput, user: dict) -> dict:
         "tags": [sanitize_text(x) for x in body.tags if x.strip()][:10],
         "is_draft": bool(body.is_draft),
     }
+    if user.get("role") == "admin":
+        if body.pinned is not None:
+            doc["pinned"] = bool(body.pinned)
+        if body.highlight_color is not None:
+            doc["highlight_color"] = body.highlight_color or None
+    return doc
 
 @api_router.post("/tasks")
 async def create_task(body: TaskInput, user: dict = Depends(get_current_user)):
@@ -600,7 +633,14 @@ async def admin_users(admin: dict = Depends(require_admin)):
     result = []
     for u in users:
         pub = user_public(u)
-        pub["task_count"] = await db.tasks.count_documents({"author_id": str(u["_id"])})
+        uid = str(u["_id"])
+        pub["drafts_count"] = await db.tasks.count_documents({"author_id": uid, "is_draft": True})
+        pub["published_count"] = await db.tasks.count_documents({"author_id": uid, "is_draft": {"$ne": True}})
+        pub["task_count"] = pub["drafts_count"] + pub["published_count"]
+        pub["folders_count"] = await db.folders.count_documents({"user_id": uid})
+        pub["last_login_at"] = u.get("last_login_at")
+        pub["time_spent_seconds"] = u.get("time_spent_seconds", 0)
+        pub["created_at"] = u.get("created_at")
         result.append(pub)
     return result
 
@@ -854,8 +894,298 @@ async def following_feed(request: Request, page: int = Query(1, ge=1), limit: in
     items = await enrich_cards(docs)
     return {"items": items, "total": total, "page": page, "pages": max(1, (total + limit - 1) // limit)}
 
-app.include_router(api_router)
+# ---------------- Comments ----------------
+@api_router.get("/tasks/{task_id}/comments")
+async def list_comments(task_id: str):
+    docs = await db.comments.find({"task_id": task_id}).sort("created_at", -1).to_list(500)
+    out = []
+    for c in docs:
+        u = await db.users.find_one({"_id": ObjectId(c["user_id"])}) if ObjectId.is_valid(c["user_id"]) else None
+        out.append({"id": str(c["_id"]), "task_id": c["task_id"], "user_id": c["user_id"],
+                    "user_name": c.get("user_name", u["name"] if u else "User"),
+                    "avatar_file_id": u.get("avatar_file_id") if u else None,
+                    "body": c["body"], "created_at": c["created_at"]})
+    return out
 
+@api_router.post("/tasks/{task_id}/comments")
+async def add_comment(task_id: str, body: CommentInput, user: dict = Depends(get_current_user)):
+    if not ObjectId.is_valid(task_id) or not await db.tasks.find_one({"_id": ObjectId(task_id)}):
+        raise HTTPException(status_code=404, detail="Task not found")
+    doc = {"task_id": task_id, "user_id": user["id"], "user_name": user["name"],
+           "body": sanitize_text(body.body), "created_at": datetime.now(timezone.utc).isoformat()}
+    res = await db.comments.insert_one(doc)
+    return {"id": str(res.inserted_id), "task_id": task_id, "user_id": user["id"],
+            "user_name": user["name"], "avatar_file_id": user.get("avatar_file_id"),
+            "body": doc["body"], "created_at": doc["created_at"]}
+
+@api_router.delete("/comments/{comment_id}")
+async def delete_comment(comment_id: str, user: dict = Depends(get_current_user)):
+    if not ObjectId.is_valid(comment_id):
+        raise HTTPException(status_code=404, detail="Comment not found")
+    c = await db.comments.find_one({"_id": ObjectId(comment_id)})
+    if not c:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    task = await db.tasks.find_one({"_id": ObjectId(c["task_id"])}) if ObjectId.is_valid(c["task_id"]) else None
+    can = user["id"] == c["user_id"] or user["role"] == "admin" or (task and task.get("author_id") == user["id"])
+    if not can:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    await db.comments.delete_one({"_id": c["_id"]})
+    return {"message": "Deleted"}
+
+# ---------------- Error Reports ----------------
+ERR_STATUSES = ["untouched", "in_progress", "fixed"]
+
+@api_router.post("/error-reports")
+async def create_error_report(body: ErrorReportInput, request: Request):
+    cu = await get_optional_user(request)
+    await db.error_reports.insert_one({
+        "message": sanitize_text(body.message), "url": sanitize_text(body.url or ""),
+        "user_id": cu["id"] if cu else None, "user_name": cu["name"] if cu else "Guest",
+        "status": "untouched", "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"message": "Reported"}
+
+@api_router.get("/admin/error-reports")
+async def admin_error_reports(admin: dict = Depends(require_admin)):
+    docs = await db.error_reports.find().sort("created_at", -1).to_list(1000)
+    return [{"id": str(d["_id"]), "message": d["message"], "url": d.get("url", ""),
+             "user_name": d.get("user_name", "Guest"), "status": d.get("status", "untouched"),
+             "created_at": d["created_at"]} for d in docs]
+
+@api_router.patch("/admin/error-reports/{rid}")
+async def admin_error_status(rid: str, body: ErrorStatusInput, admin: dict = Depends(require_admin)):
+    if body.status not in ERR_STATUSES or not ObjectId.is_valid(rid):
+        raise HTTPException(status_code=400, detail="Invalid")
+    await db.error_reports.update_one({"_id": ObjectId(rid)}, {"$set": {"status": body.status}})
+    return {"message": "Updated"}
+
+# ---------------- Admin: promote + heartbeat ----------------
+@api_router.post("/admin/users/{user_id}/promote")
+async def admin_promote(user_id: str, admin: dict = Depends(require_admin)):
+    if not ObjectId.is_valid(user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"role": "admin"}})
+    return {"message": "Promoted"}
+
+@api_router.post("/users/me/ping")
+async def heartbeat(user: dict = Depends(get_current_user)):
+    await db.users.update_one({"_id": ObjectId(user["id"])}, {"$inc": {"time_spent_seconds": 60}})
+    return {"ok": True}
+
+# ---------------- Admin: Excel export ----------------
+def _ws_write(ws, headers, rows):
+    ws.append(headers)
+    for r in rows:
+        ws.append(r)
+
+@api_router.get("/admin/export/excel")
+async def export_excel(admin: dict = Depends(require_admin)):
+    from openpyxl import Workbook
+    import io
+    wb = Workbook()
+    users = await db.users.find().to_list(10000)
+    folders_by_user = {}
+    async for f in db.folders.find():
+        folders_by_user[f["user_id"]] = folders_by_user.get(f["user_id"], 0) + 1
+    ws1 = wb.active; ws1.title = "Users"
+    urows = []
+    for u in users:
+        uid = str(u["_id"])
+        drafts = await db.tasks.count_documents({"author_id": uid, "is_draft": True})
+        pub = await db.tasks.count_documents({"author_id": uid, "is_draft": {"$ne": True}})
+        urows.append([uid, u["name"], u["email"], u["role"], folders_by_user.get(uid, 0),
+                      drafts, pub, u.get("time_spent_seconds", 0), u.get("created_at", ""), u.get("last_login_at", "")])
+    _ws_write(ws1, ["ID","Name","Email","Role","Folders","Drafts","Published","TimeSpent(s)","Registered","LastLogin"], urows)
+
+    def task_rows(docs):
+        rows = []
+        for t in docs:
+            rows.append([str(t["_id"]), t.get("created_at",""), t.get("author_id",""), t.get("folder_id","") or "",
+                         t.get("views",0), t.get("likes_count",0), t.get("subject",""), t.get("grade",""),
+                         t.get("description",""), (t.get("html_code") or t.get("body") or ""),
+                         ",".join(t.get("tags",[])), "draft" if t.get("is_draft") else "published"])
+        return rows
+    hdr = ["ID","Created","AuthorID","FolderID","Views","Likes","Subject","Grade","Description","Code/Body","Tags","Status"]
+    for sheet, tp in [("Tasks(HTML)","html"), ("Worksheets","worksheet"), ("Blog Posts","blog")]:
+        docs = await db.tasks.find({"type": tp}).to_list(10000)
+        ws = wb.create_sheet(sheet)
+        _ws_write(ws, hdr, task_rows(docs))
+    buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+    return Response(content=buf.read(),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": 'attachment; filename="teachhub_analytics.xlsx"'})
+
+# ---------------- Admin: DB export / import (merge) ----------------
+EXPORT_COLLECTIONS = ["users","tasks","likes","favorites","follows","folders","reports","files","comments","error_reports"]
+
+@api_router.get("/admin/export/db")
+async def export_db(admin: dict = Depends(require_admin)):
+    import json as _json
+    dump = {}
+    for col in EXPORT_COLLECTIONS:
+        docs = await db[col].find().to_list(100000)
+        for d in docs:
+            d["_id"] = str(d["_id"])
+        dump[col] = docs
+    content = _json.dumps({"version": 1, "data": dump}, ensure_ascii=False).encode("utf-8")
+    return Response(content=content, media_type="application/json",
+                    headers={"Content-Disposition": 'attachment; filename="teachhub_db.json"'})
+
+@api_router.post("/admin/import/db")
+async def import_db(file: UploadFile = File(...), admin: dict = Depends(require_admin)):
+    import json as _json
+    raw = await file.read()
+    try:
+        payload = _json.loads(raw)
+        data = payload.get("data", {})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid backup file")
+    inserted = {}
+    for col, docs in data.items():
+        if col not in EXPORT_COLLECTIONS:
+            continue
+        count = 0
+        for d in docs:
+            _id = d.pop("_id", None)
+            query = {"_id": ObjectId(_id)} if _id and ObjectId.is_valid(_id) else None
+            if query and await db[col].find_one(query):
+                continue
+            if query:
+                d["_id"] = ObjectId(_id)
+            await db[col].insert_one(d)
+            count += 1
+        inserted[col] = count
+    return {"message": "Imported (merge)", "inserted": inserted}
+
+# ---------------- Password reset (Resend email) ----------------
+import secrets as _secrets
+EMAIL_BASE_URL = "https://integrations.emergentagent.com"
+
+import re as _re
+import ipaddress as _ipaddress
+from html.parser import HTMLParser as _HTMLParser
+from urllib.parse import urlparse as _urlparse
+_SHORTENERS = ("bit.ly", "tinyurl.com", "t.co", "is.gd", "cutt.ly", "goo.gl", "rebrand.ly")
+_CRED_ASK = ("reply with your password", "reply with the code", "send your password", "cvv",
+             "send us your password", "enter your password below", "confirm your card number",
+             "your full card number", "seed phrase", "recovery phrase", "verify your card",
+             "social security number", "confirm your bank details")
+_HOSTISH = _re.compile(r"\b(?:https?://)?((?:[a-z0-9-]+\.)+[a-z]{2,})", _re.I)
+
+def _host_ok(host: str) -> bool:
+    if not host or "xn--" in host:
+        return False
+    try:
+        _ipaddress.ip_address(host)
+        return False
+    except ValueError:
+        pass
+    return not any(host == s or host.endswith("." + s) for s in _SHORTENERS)
+
+def _same_site(shown: str, real: str) -> bool:
+    return shown == real or real.endswith("." + shown) or shown.endswith("." + real)
+
+class _EmailScan(_HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.tags, self.urls, self.anchors = set(), [], []
+        self._href, self._text = None, []
+    def handle_starttag(self, tag, attrs):
+        self.tags.add(tag.lower())
+        self.urls += [v for k, v in attrs if k.lower() in ("href", "src") and v]
+        if tag.lower() == "a":
+            self._href = dict((k.lower(), v) for k, v in attrs).get("href")
+            self._text = []
+    def handle_data(self, data):
+        if self._href is not None:
+            self._text.append(data)
+    def handle_endtag(self, tag):
+        if tag.lower() == "a" and self._href is not None:
+            self.anchors.append((self._href, "".join(self._text)))
+            self._href, self._text = None, []
+
+def _assert_safe_email(subject: str, html: str) -> None:
+    scan = _EmailScan(); scan.feed(html)
+    if scan.tags & {"form", "input", "textarea", "select"}:
+        raise ValueError("No forms or input fields in email (G2)")
+    body = f"{subject}\n{html}".lower()
+    for p in _CRED_ASK:
+        if p in body:
+            raise ValueError(f"Email asks the recipient for credentials: {p!r} (G2)")
+    for url in scan.urls:
+        low = url.strip().lower()
+        if low.startswith(("mailto:", "tel:", "cid:", "#")):
+            continue
+        if not low.startswith("https://"):
+            raise ValueError(f"Email links/assets must be absolute https: {url!r} (G3)")
+        host = _urlparse(low).hostname or ""
+        if not _host_ok(host) or _urlparse(low).username is not None:
+            raise ValueError(f"Shortened, numeric-host or credential-bearing URL: {url!r} (G3)")
+    for href, text in scan.anchors:
+        real = _urlparse(href.strip().lower()).hostname or ""
+        if not real:
+            continue
+        for m in _HOSTISH.finditer(text):
+            if not _same_site(m.group(1).lower(), real):
+                raise ValueError(f"Anchor text {m.group(1)!r} != real link host {real!r} (G3)")
+
+async def _send_email(to: str, subject: str, html: str):
+    _assert_safe_email(subject, html)
+    import httpx as _httpx
+    payload = {"to": [to], "subject": subject, "html": html, "from_name": os.environ["EMAIL_FROM_NAME"]}
+    try:
+        async with _httpx.AsyncClient(timeout=30) as c:
+            r = await c.post(f"{EMAIL_BASE_URL}/api/v1/email/send",
+                             headers={"X-Email-Key": os.environ["EMERGENT_EMAIL_KEY"]}, json=payload)
+        r.raise_for_status()
+        return r.json().get("id")
+    except _httpx.HTTPStatusError as e:
+        logger.error(f"email send failed: {e.response.status_code} {e.response.text}")
+        raise HTTPException(status_code=502, detail="Failed to send email")
+    except Exception as e:
+        logger.error(f"email send failed: {e}")
+        raise HTTPException(status_code=502, detail="Failed to send email")
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordInput):
+    user = await db.users.find_one({"email": body.email.lower()})
+    if user:
+        token = _secrets.token_urlsafe(32)
+        await db.reset_tokens.insert_one({
+            "token": token, "user_id": str(user["_id"]), "used": False,
+            "expires_at": (datetime.now(timezone.utc) + timedelta(hours=1)).isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        base = os.environ["APP_BASE_URL"].rstrip("/")
+        link = f"{base}/reset-password?token={token}"
+        html = (f'<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif">'
+                f'<h2>Reset your TeachHub password</h2>'
+                f'<p>We received a request to reset your password. This link is valid for 1 hour:</p>'
+                f'<p><a href="{link}" style="background:#FDE047;border:2px solid #0F172A;padding:10px 18px;'
+                f'border-radius:8px;color:#0F172A;text-decoration:none;font-weight:bold">Reset password</a></p>'
+                f'<p>If you did not request this, you can ignore this email.</p>'
+                f'<p style="font-size:12px;color:#888">Sent by TeachHub. We never ask for your password by email.</p>'
+                f'</td></tr></table>')
+        import asyncio as _asyncio
+        async def _bg():
+            try:
+                await _send_email(user["email"], "Reset your TeachHub password", html)
+            except Exception as e:
+                logger.error(f"reset email bg failed: {e}")
+        _asyncio.create_task(_bg())
+    return {"message": "If an account exists, a reset link has been sent."}
+
+@api_router.post("/auth/reset-password")
+async def reset_password(body: ResetPasswordInput):
+    rec = await db.reset_tokens.find_one({"token": body.token, "used": False})
+    if not rec or rec["expires_at"] < datetime.now(timezone.utc).isoformat():
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+    await db.users.update_one({"_id": ObjectId(rec["user_id"])},
+                              {"$set": {"password_hash": hash_password(body.new_password)}})
+    await db.reset_tokens.update_one({"_id": rec["_id"]}, {"$set": {"used": True}})
+    return {"message": "Password updated. You can now log in."}
+
+app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -880,6 +1210,28 @@ async def seed_admin():
         await db.users.update_one({"email": admin_email},
                                   {"$set": {"password_hash": hash_password(admin_password)}})
 
+async def seed_guide():
+    if await db.tasks.find_one({"is_guide": True}):
+        return
+    admin = await db.users.find_one({"email": os.environ.get("ADMIN_EMAIL", "admin@teachhub.com").lower()})
+    if not admin:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    body = (
+        "👋 Welcome to TeachHub!\n\nThis guide is auto-added to your Favorites. Here's how to use the platform and how to use AI to create content.\n\n"
+        "HOW TO USE\n• Browse the feed and open any post to run it — no account needed.\n• Publish 3 kinds: Interactive (single HTML file), Worksheet (downloadable files), Blog (text + images).\n• Like, Favorite and Follow teachers. Use the Studio to organize posts into folders. Drafts stay private.\n\n"
+        "PROMPT → INTERACTIVE HTML\n\"Create a SINGLE self-contained HTML file for an interactive [TOPIC] activity for [GRADE] in [SUBJECT]. Put ALL HTML, CSS and JavaScript in ONE file (inline <style> and <script>), no external files or CDNs. It must run inside a sandboxed iframe. Include [N] questions with instant feedback, a score, a Restart button and a colorful accessible mobile-friendly UI. Return only the HTML file.\"\n\n"
+        "PROMPTS → WORKSHEET (2 steps)\nStep 1 (task): \"Act as a [SUBJECT] teacher. Create [N] [TOPIC] exercises for [GRADE], easy to hard, with an answer key.\"\nStep 2 (worksheet): \"Turn the exercises above into a clean printable one-page worksheet: title, Name/Date fields, numbered questions with space to write, black-on-white A4. Give print-ready HTML or a PDF-export description.\"\n\n"
+        "━━━━━━━━━━\nДОБРО ПОЖАЛОВАТЬ!\n• Публикуйте 3 типа постов: Интерактив, Рабочий лист, Блог.\n• Лайки, избранное, подписки; Студия для папок; черновики видны только вам.\n\nПромпт → интерактивный HTML: \"Создай ОДИН HTML-файл с заданием по теме [ТЕМА] для [КЛАСС]. Весь код (HTML, CSS, JS) в одном файле, без внешних файлов/CDN. Работает в песочнице. [N] вопросов, мгновенная обратная связь, счёт, кнопка 'Заново'. Верни только HTML.\"\nПромпты → рабочий лист: Шаг 1: \"Составь [N] заданий по теме [ТЕМА] для [КЛАСС] с ответами.\" Шаг 2: \"Свёрстай печатный лист на одну страницу: заголовок, Имя/Дата, пронумерованные вопросы, A4.\"\n\nHappy teaching! 🎓"
+    )
+    await db.tasks.insert_one({
+        "type": "blog", "title": "📘 TeachHub Guide & AI Prompts", "subject": "other", "grade": "university",
+        "description": "How to use TeachHub and prompts for generating interactive tasks and worksheets with AI.",
+        "html_code": None, "body": body, "files": [], "folder_id": None, "tags": ["guide"],
+        "views": 0, "likes_count": 0, "is_draft": False, "is_guide": True, "pinned": True,
+        "highlight_color": "#FDE68A", "author_id": str(admin["_id"]), "created_at": now, "updated_at": now,
+    })
+
 @app.on_event("startup")
 async def startup():
     await db.users.create_index("email", unique=True)
@@ -890,6 +1242,7 @@ async def startup():
     await db.tasks.create_index([("type", 1)])
     await db.files.create_index("id", unique=True)
     await seed_admin()
+    await seed_guide()
     try:
         init_storage()
         logger.info("Storage initialized")

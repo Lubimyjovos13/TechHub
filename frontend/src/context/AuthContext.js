@@ -16,6 +16,12 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    if (!user) return;
+    const id = setInterval(() => { if (!document.hidden) api.post("/users/me/ping").catch(() => {}); }, 60000);
+    return () => clearInterval(id);
+  }, [user]);
+
   const applyAuth = (data) => {
     localStorage.setItem("th_token", data.token);
     setUser(data.user);

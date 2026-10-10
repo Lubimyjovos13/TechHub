@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import api, { formatApiErrorDetail } from "@/lib/api";
+import api, { formatApiErrorDetail, FILE_URL } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { PostContent } from "@/components/PostContent";
 import {
@@ -11,6 +11,7 @@ import {
 import { Heart, Star, Flag, PencilSimple, Trash, Eye, CaretLeft, UserCircle, PlayCircle, FileArrowDown, Article } from "@phosphor-icons/react";
 
 const TYPE_ICON = { html: PlayCircle, worksheet: FileArrowDown, blog: Article };
+const _viewed = new Set();
 
 export default function AssignmentView() {
   const { t } = useTranslation();
@@ -23,11 +24,26 @@ export default function AssignmentView() {
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("");
   const [delOpen, setDelOpen] = useState(false);
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState("");
 
   useEffect(() => {
     setLoading(true);
-    api.get(`/tasks/${id}`).then((res) => setTask(res.data)).catch(() => setError(t("common.error"))).finally(() => setLoading(false));
+    api.get(`/tasks/${id}`).then((res) => {
+      setTask(res.data);
+      if (!_viewed.has(id)) { _viewed.add(id); api.post(`/tasks/${id}/view`).catch(() => {}); }
+    }).catch(() => setError(t("common.error"))).finally(() => setLoading(false));
+    api.get(`/tasks/${id}/comments`).then((r) => setComments(r.data)).catch(() => {});
   }, [id, t]);
+
+  const addComment = async () => {
+    try { const r = await api.post(`/tasks/${id}/comments`, { body: commentText }); setComments((c) => [r.data, ...c]); setCommentText(""); }
+    catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
+  };
+  const deleteComment = async (cid) => {
+    try { await api.delete(`/comments/${cid}`); setComments((c) => c.filter((x) => x.id !== cid)); }
+    catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
+  };
 
   const requireLogin = () => { if (!user) { toast.error(t("view.loginToInteract")); navigate("/login"); return true; } return false; };
 
@@ -63,7 +79,7 @@ export default function AssignmentView() {
         <CaretLeft size={16} weight="bold" /> {t("view.back")}
       </Link>
 
-      <div className="nb-card p-6 mb-6 nb-rise">
+      <div className="nb-card p-6 mb-6 nb-rise" style={task.highlight_color ? { background: task.highlight_color } : undefined}>
         <div className="flex flex-wrap gap-2 mb-3">
           <span className="flex items-center gap-1 text-xs font-bold bg-yellow-300 border border-slate-900 rounded-full px-3 py-1"><TypeIcon size={13} weight="bold" /> {t(`types.${task.type}`)}</span>
           {task.is_draft && <span className="text-xs font-bold bg-amber-300 border border-slate-900 rounded-full px-3 py-1" data-testid="view-draft-badge">{t("card.draft")}</span>}
@@ -107,6 +123,36 @@ export default function AssignmentView() {
           </>
         )}
       </div>
+
+      <section className="mt-10" data-testid="comments-section">
+        <h2 className="font-heading text-2xl font-extrabold mb-4">{t("comments.title")} ({comments.length})</h2>
+        {user ? (
+          <div className="flex gap-2 mb-5">
+            <input value={commentText} onChange={(e) => setCommentText(e.target.value)} placeholder={t("comments.placeholder")} data-testid="comment-input" className="nb-input flex-1" />
+            <button onClick={addComment} disabled={!commentText.trim()} data-testid="comment-submit" className="px-5 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-50">{t("comments.submit")}</button>
+          </div>
+        ) : <p className="text-slate-500 font-semibold mb-5">{t("comments.login")}</p>}
+        {comments.length === 0 ? (
+          <p className="text-slate-500 font-semibold" data-testid="comments-empty">{t("comments.empty")}</p>
+        ) : (
+          <div className="space-y-3" data-testid="comments-list">
+            {comments.map((c) => (
+              <div key={c.id} className="nb-card p-4 flex items-start gap-3" data-testid={`comment-${c.id}`}>
+                <div className="w-9 h-9 bg-sky-200 border-2 border-slate-900 rounded-md flex items-center justify-center shrink-0 overflow-hidden">
+                  {c.avatar_file_id ? <img src={FILE_URL(c.avatar_file_id)} alt="" className="w-full h-full object-cover" /> : <UserCircle size={20} weight="bold" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-bold text-sm">{c.user_name}</div>
+                  <div className="text-slate-700 whitespace-pre-wrap break-words">{c.body}</div>
+                </div>
+                {user && (user.id === c.user_id || user.role === "admin" || user.id === task.author_id) && (
+                  <button onClick={() => deleteComment(c.id)} data-testid={`comment-delete-${c.id}`} className="text-red-600 hover:text-red-800 shrink-0"><Trash size={16} weight="bold" /></button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
 
       <Dialog open={reportOpen} onOpenChange={setReportOpen}>
         <DialogContent className="border-2 border-slate-900 nb-shadow bg-white">

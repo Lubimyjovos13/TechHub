@@ -5,10 +5,12 @@ import { useAuth } from "@/context/AuthContext";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { GraduationCap, Plus, UserCircle, SignOut, Shield, Translate, Palette, Sun, Moon } from "@phosphor-icons/react";
+import { GraduationCap, Plus, UserCircle, SignOut, Shield, Translate, Palette, Sun, Moon, Warning } from "@phosphor-icons/react";
 import i18n from "@/i18n";
 import { getTheme, applyTheme } from "@/lib/theme";
-import { FILE_URL } from "@/lib/api";
+import api, { FILE_URL, formatApiErrorDetail } from "@/lib/api";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 
 export const Header = () => {
   const { t } = useTranslation();
@@ -16,6 +18,13 @@ export const Header = () => {
   const navigate = useNavigate();
   const [theme, setTheme] = useState(getTheme());
   const [, force] = useState(0);
+  const [errOpen, setErrOpen] = useState(false);
+  const [errMsg, setErrMsg] = useState("");
+
+  const submitError = async () => {
+    try { await api.post("/error-reports", { message: errMsg, url: window.location.href }); toast.success(t("errorReport.sent")); setErrOpen(false); setErrMsg(""); }
+    catch (e) { toast.error(formatApiErrorDetail(e.response?.data?.detail)); }
+  };
 
   const toggleLang = () => {
     const next = i18n.language === "ru" ? "en" : "ru";
@@ -41,6 +50,14 @@ export const Header = () => {
         </Link>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <button
+            onClick={() => setErrOpen(true)}
+            data-testid="report-error-btn"
+            className="flex items-center justify-center w-10 h-10 bg-red-300 border-2 border-slate-900 rounded-md nb-shadow-sm nb-press"
+            aria-label="Report an error"
+          >
+            <Warning size={18} weight="bold" />
+          </button>
           <button
             onClick={toggleTheme}
             data-testid="theme-toggle"
@@ -108,6 +125,17 @@ export const Header = () => {
           )}
         </div>
       </div>
+      <Dialog open={errOpen} onOpenChange={setErrOpen}>
+        <DialogContent className="border-2 border-slate-900 nb-shadow bg-white">
+          <DialogHeader><DialogTitle className="font-heading">{t("errorReport.title")}</DialogTitle>
+          <DialogDescription>{t("errorReport.hint")}</DialogDescription></DialogHeader>
+          <textarea rows={4} value={errMsg} onChange={(e) => setErrMsg(e.target.value)} data-testid="error-report-message" className="nb-input resize-none" />
+          <DialogFooter className="gap-2">
+            <button onClick={() => setErrOpen(false)} className="px-4 py-2 bg-white border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">{t("common.cancel")}</button>
+            <button onClick={submitError} disabled={!errMsg.trim()} data-testid="error-report-submit" className="px-4 py-2 bg-red-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-50">{t("errorReport.submit")}</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </header>
   );
 };

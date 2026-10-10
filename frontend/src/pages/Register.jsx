@@ -15,6 +15,7 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [consent, setConsent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -22,6 +23,7 @@ export default function Register() {
     e.preventDefault();
     setError("");
     if (password !== confirm) { setError(t("auth.passwordMismatch")); return; }
+    if (!consent) { setError(t("auth.consentRequired")); return; }
     setLoading(true);
     try {
       await register(email, password, name);
@@ -63,6 +65,10 @@ export default function Register() {
             {mismatch && <p className="text-xs text-red-600 font-semibold mt-1" data-testid="password-mismatch">{t("auth.passwordMismatch")}</p>}
           </div>
           {error && <p className="text-red-600 font-semibold text-sm" data-testid="register-error">{error}</p>}
+          <label className="flex items-start gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} data-testid="register-consent" className="w-5 h-5 mt-0.5 accent-slate-900" />
+            <span className="font-semibold">{t("auth.consent")}</span>
+          </label>
           <button type="submit" disabled={loading || mismatch} data-testid="register-submit" className="w-full py-3 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-60">
             {loading ? t("common.loading") : t("auth.registerBtn")}
           </button>

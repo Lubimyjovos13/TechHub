@@ -47,6 +47,7 @@ export default function Login() {
             <PasswordInput required value={password} onChange={(e) => setPassword(e.target.value)} testId="login-password" />
           </div>
           {error && <p className="text-red-600 font-semibold text-sm" data-testid="login-error">{error}</p>}
+          <div className="text-right -mt-1"><Link to="/forgot-password" data-testid="forgot-link" className="text-sm font-bold underline">{t("auth.forgot")}</Link></div>
           <button type="submit" disabled={loading} data-testid="login-submit" className="w-full py-3 bg-yellow-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press disabled:opacity-60">
             {loading ? t("common.loading") : t("auth.loginBtn")}
           </button>
