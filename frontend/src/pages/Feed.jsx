@@ -90,11 +90,11 @@ export default function Feed() {
               {TYPES.map((x) => <option key={x} value={x}>{t(`types.${x}`)}</option>)}
             </select>
             <select value={subject} onChange={(e) => update({ subject: e.target.value })} data-testid="subject-filter" className="nb-input md:w-48 font-semibold cursor-pointer">
-              <option value="">{t("search.subject")}: {t("search.all")}</option>
+              <option value="">{`${t("search.subject")}: ${t("search.all")}`}</option>
               {SUBJECTS.map((s) => <option key={s} value={s}>{t(`subjects.${s}`)}</option>)}
             </select>
             <select value={grade} onChange={(e) => update({ grade: e.target.value })} data-testid="grade-filter" className="nb-input md:w-44 font-semibold cursor-pointer">
-              <option value="">{t("search.grade")}: {t("search.all")}</option>
+              <option value="">{`${t("search.grade")}: ${t("search.all")}`}</option>
               {GRADES.map((g) => <option key={g} value={g}>{t(`grades.${g}`)}</option>)}
             </select>
             <button type="submit" data-testid="search-submit" className="px-5 py-2 bg-sky-300 border-2 border-slate-900 rounded-md font-bold nb-shadow-sm nb-press">

@@ -77,3 +77,16 @@ Bilingual (Russian + English) social platform where teachers publish, share, and
 - P1: Split server.py into routers/services for maintainability (~770 lines)
 - P2: Comments, forking, version history, analytics dashboards
 - P2: Full WCAG audit; httpOnly-cookie auth hardening
+
+
+## Iteration 7 (Jun 2026) — Request #6 complete
+- Admin dashboard: Data tools (Excel export, DB JSON export, additive DB import), Users stats (folders/drafts/published/time on site/registered/last login), Make admin, Error reports tab with status (untouched/in_progress/fixed)
+- Header "Report error" button (guests + users); comments on posts; register consent; inline folder creation; admin pin + highlight
+- Password reset via Emergent-managed Resend email (with safety gate); reset link /reset-password?token= (1h, single use)
+- View count +1 per open (POST /api/tasks/{id}/view); heartbeat POST /api/users/me/ping every 60s for time on site
+- Restored missing `admin` i18n namespace (EN/RU); i18n checker at /app/memory/check_i18n.cjs
+- Tested: iteration_7.json — backend 9/9, frontend 13/13
+
+## Backlog
+- P1: Comment moderation queue, forking/copying assignments
+- P2: Version history, detailed per-post analytics

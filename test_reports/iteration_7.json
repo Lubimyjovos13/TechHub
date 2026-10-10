@@ -1,0 +1,30 @@
+{
+  "summary": "Round 7 end-to-end verification of User Request #6: admin pin/highlight, Excel + DB export/import (additive merge), admin Users stats + promote, header error-report (guest + logged-in) with admin tab + status persistence, forgot/reset password token flow with single-use, view count +=1 exactly, comments post+delete + guest blocked, registration consent required, inline folder creation, i18n EN/RU with no raw keys. Backend: 9/9 pytest tests pass (round7). Frontend: 13/13 flows pass via Playwright.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Feed select options", "issues": ["Pre-existing dev-only hydration warning: <span> cannot be child of <option> — documented in iteration_6, non-blocking"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_fixes_round7.py",
+    "/app/test_reports/pytest/round7.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is 1255 lines — consider splitting into routers (auth, admin, tasks, comments, email) per 700-line guideline.",
+    "import_db relies on empty-counts assertion for 'additive' guarantee; current implementation skips docs whose _id already exists but does not update existing records (intended per spec of ADDITIVE merge).",
+    "_viewed Set in AssignmentView.jsx is module-scoped (process-lived) — prevents double increments across React StrictMode double effect; correct, but cleared on full reload (expected).",
+    "admin_users returns full name/email list unpaginated (limit 1000) — adequate for current scale."
+  ],
+  "updated_files": ["/app/backend/tests/test_fixes_round7.py", "/app/test_reports/iteration_7.json"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "100% (13/13 flows)"},
+  "test_credentials": "admin@teachhub.com/admin12345 (used, unchanged). Freshly created TEST_r7_* and TEST_r7fe_* users during tests.",
+  "seed_data_creation": "Created several throwaway TEST_r7*@example.com users; a few test tasks (deleted at end of their tests); one guest error report ('TEST_r7_frontend guest report') plus Mongo reset_tokens entries left behind — all are safe test data.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All request #6 features verified end-to-end. Backend tests at /app/backend/tests/test_fixes_round7.py cover: Excel + DB export/import (additive), admin users stats + promote, error reports guest+status, forgot/reset single-use token flow (reads db.reset_tokens from Mongo per DB_NAME), view +=1, comments create/delete/guest-blocked, pin+highlight ordering, folder create. Frontend Playwright verified: consent gate on Register, i18n in /admin EN+RU (no raw keys like 'admin.title'), Users table columns (Folders/Drafts/Published/Time on site/Registered/Last login), admin-tab-errors shows reports + status change persists across reload, admin-export-excel and admin-export-db downloads trigger (xlsx + json), forgot-link → /forgot-password → forgot-sent, pinned seeded guide post appears first with yellow highlight. Known dev-only hydration warning on Feed select carries over from prev rounds; not a regression.",
+  "rca of the issue": "N/A — no issues found."
+}
